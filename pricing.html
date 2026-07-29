@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mushavo Pricing | Country Based Plans</title>
+  <meta name="description" content="Mushavo pricing for landlords, individual portfolio managers, and property management companies.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="i18n.js" defer></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { ink: '#0f172a', muted: '#64748b', brand: '#00806b', brandDark: '#075e56' },
+          boxShadow: { glass: '0 24px 80px rgba(15, 23, 42, 0.12)' }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden bg-[#eefbf7] text-ink">
+  <div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute left-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-emerald-200/60 blur-3xl"></div>
+    <div class="absolute right-[-10rem] top-20 h-96 w-96 rounded-full bg-cyan-200/50 blur-3xl"></div>
+  </div>
+
+  <header class="sticky top-0 z-40 border-b border-white/50 bg-white/55 backdrop-blur-2xl">
+    <div class="mx-auto flex w-full max-w-[96rem] items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <a href="index.html" class="flex min-w-0 items-center gap-3">
+        <img src="mushavo-logo.png" alt="Mushavo logo" class="h-[7.875rem] w-auto sm:h-36">
+      </a>
+      <button id="menuButton" class="inline-flex items-center rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-semibold shadow-sm md:hidden" type="button">Menu</button>
+      <nav class="hidden items-center gap-2 md:flex">
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="about.html">About</a>
+        <a class="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-bold text-brandDark" href="pricing.html">Pricing</a>
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="contact.html">Contact</a>
+        <a class="rounded-2xl border border-emerald-200 bg-white/70 px-4 py-2 text-sm font-bold text-brandDark shadow-sm transition hover:bg-white" href="client.html">Client Area</a>
+      </nav>
+    </div>
+    <nav id="mobileMenu" class="mx-auto hidden w-full max-w-[96rem] px-4 pb-4 sm:px-6 md:hidden">
+      <div class="grid gap-2 rounded-3xl border border-white/70 bg-white/70 p-3 shadow-glass backdrop-blur-xl">
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="about.html">About</a>
+        <a class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-brandDark" href="pricing.html">Pricing</a>
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="contact.html">Contact</a>
+        <a class="rounded-2xl bg-brand px-4 py-3 text-sm font-bold text-white" href="client.html">Client Area</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="mx-auto w-full max-w-[96rem] px-4 py-12 sm:px-6 lg:px-8">
+    <section class="rounded-[2rem] border border-white/70 bg-white/55 p-8 shadow-glass backdrop-blur-2xl sm:p-10">
+      <div class="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">Pricing</p>
+          <h1 class="mt-3 max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-5xl">Plans that match your country, portfolio size, and account type.</h1>
+          <p id="locationNote" class="mt-4 max-w-2xl leading-8 text-slate-600">Choose your country to see local pricing. Mushavo can price each market separately, so Zimbabwe, Malaysia, and future countries can have plans that make sense locally.</p>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2 lg:min-w-[28rem]">
+          <label class="block">
+            <span class="mb-2 block text-sm font-bold text-slate-700">Country</span>
+            <select id="countrySelect" class="h-12 w-full rounded-2xl border border-slate-200 bg-white/80 px-4 font-semibold outline-none transition focus:border-brand">
+              <option value="ZW">Zimbabwe</option>
+              <option value="MY">Malaysia</option>
+            </select>
+          </label>
+          <div class="block">
+            <span class="mb-2 block text-sm font-bold text-slate-700">Billing</span>
+            <div class="grid min-h-12 grid-cols-2 rounded-2xl border border-slate-200 bg-white/70 p-1 shadow-sm backdrop-blur-xl">
+              <button class="billingButton rounded-xl px-4 py-2 text-sm font-black transition" type="button" data-billing="monthly">Monthly</button>
+              <button class="billingButton rounded-xl px-4 py-2 text-sm font-black leading-tight transition" type="button" data-billing="yearly">
+                <span class="block">Yearly</span>
+                <span class="block text-[10px] font-extrabold opacity-80">1 month free</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-[2rem] border border-white/70 bg-white/45 p-3 shadow-glass backdrop-blur-2xl">
+      <div class="grid gap-2 rounded-[1.5rem] bg-white/55 p-2 sm:grid-cols-3">
+        <button class="tabButton rounded-2xl px-4 py-3 text-sm font-black transition" type="button" data-type="landlord">Landlords</button>
+        <button class="tabButton rounded-2xl px-4 py-3 text-sm font-black transition" type="button" data-type="ipm">IPM</button>
+        <button class="tabButton rounded-2xl px-4 py-3 text-sm font-black transition" type="button" data-type="pmc">PMC</button>
+      </div>
+    </section>
+
+    <section id="pricingGrid" class="mt-6 grid gap-4 lg:grid-cols-3"></section>
+
+    <section class="mt-6 grid gap-4 lg:grid-cols-4">
+      <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+        <p class="text-sm font-black uppercase tracking-[0.16em] text-brandDark">01</p>
+        <h2 class="mt-3 text-xl font-black">Choose country</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-600">Each country can have its own currency, pricing level, and add-on prices.</p>
+      </div>
+      <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+        <p class="text-sm font-black uppercase tracking-[0.16em] text-brandDark">02</p>
+        <h2 class="mt-3 text-xl font-black">Choose account type</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-600">Landlords, individual portfolio managers, and property management companies have different limits.</p>
+      </div>
+      <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+        <p class="text-sm font-black uppercase tracking-[0.16em] text-brandDark">03</p>
+        <h2 class="mt-3 text-xl font-black">Match the portfolio</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-600">Plans are mainly based on properties, units, landlord connections, staff, and storage needs.</p>
+      </div>
+      <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+        <p class="text-sm font-black uppercase tracking-[0.16em] text-brandDark">04</p>
+        <h2 class="mt-3 text-xl font-black">Add capacity later</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-600">Customers can add units, properties, staff, storage, or setup support as they grow.</p>
+      </div>
+    </section>
+
+    <section class="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+      <div class="rounded-[2rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+        <h2 class="text-2xl font-black">Add-ons</h2>
+        <p class="mt-3 leading-7 text-slate-600">Use add-ons when a customer needs more capacity without moving to a higher plan. Deposits are not treated as revenue in Mushavo reporting because they are normally held for return or applied according to the lease.</p>
+      </div>
+      <div id="addonsGrid" class="grid gap-3 sm:grid-cols-2"></div>
+    </section>
+
+    <section class="mt-6 rounded-[2rem] bg-slate-950 p-8 text-white shadow-glass">
+      <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="text-3xl font-black">Need a larger setup?</h2>
+          <p class="mt-3 max-w-2xl text-slate-300">For large property groups, custom country rollouts, or heavy file storage, contact Mushavo for a custom plan.</p>
+        </div>
+        <a href="contact.html" class="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white px-6 py-4 font-bold text-slate-950 transition hover:bg-emerald-50">Contact Sales</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-white/60 bg-white/50 backdrop-blur-xl">
+    <div class="mx-auto flex w-full max-w-[96rem] flex-col gap-4 px-4 py-8 text-sm text-slate-600 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+      <p>All rights reserved to Mushavo.</p>
+      <div class="flex flex-wrap gap-4">
+        <a class="font-semibold text-brandDark" href="contact.html">Contact Support</a>
+        <a class="font-semibold text-brandDark" href="client.html">Client Area</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const SUPABASE_URL = 'https://rmbvgtaadkvbsasbvdmb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtYnZndGFhZGt2YnNhc2J2ZG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTQ1NjIsImV4cCI6MjA5ODIzMDU2Mn0.kMhXDI85TVAsw_Mb-PO5iaSHipG3vLFmM7DF3TUnf00';
+    const pricingClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let PRICES = {
+      ZW: {
+        currency: '$',
+        label: 'Zimbabwe',
+        plans: {
+          landlord: [
+            { name: 'Free', monthly: 0, yearly: 0, limits: '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', description: 'For one-unit landlords and landlords invited by an IPM or PMC.', cta: 'Sign up for free', href: 'client.html?signup=landlord' },
+            { name: 'Starter', monthly: 4, yearly: 44, limits: '2 properties, 8 units, 1 staff, 1 IPM or PMC connection', description: 'For a small landlord who needs more than the free single-unit account.' },
+            { name: 'Growth', monthly: 10, yearly: 110, limits: '6 properties, 35 units, 3 staff, 2 IPM or PMC connections', description: 'For growing owners with multiple units.' },
+            { name: 'Portfolio', monthly: 22, yearly: 242, limits: '20 properties, 120 units, 8 staff, 5 IPM or PMC connections', description: 'For larger private portfolios.' },
+            { name: 'Custom', monthly: 0, yearly: 0, limits: 'Custom properties, units, staff, and partner connections', description: 'For large or special portfolios needing negotiated limits.', customPrice: 'From $50' }
+          ],
+          ipm: [
+            { name: 'Pro', monthly: 15, yearly: 165, limits: '5 landlords, 20 properties, 80 units', description: 'For small Individual Portfolio Managers. IPM accounts have no free plan.' },
+            { name: 'Growth', monthly: 35, yearly: 385, limits: '15 landlords, 60 properties, 250 units', description: 'For larger IPM operations.' },
+            { name: 'Portfolio', monthly: 70, yearly: 770, limits: '40 landlords, 180 properties, 750 units', description: 'For established IPMs managing many landlords.' },
+            { name: 'Custom', monthly: 0, yearly: 0, limits: 'Custom landlords, properties, and units', description: 'For IPMs needing larger country-specific limits.', customPrice: 'From $100' }
+          ],
+          pmc: [
+            { name: 'Starter', monthly: 30, yearly: 330, limits: '3 landlords, 15 properties, 75 units, 5 staff', description: 'For a small Property Management Company.' },
+            { name: 'Growth', monthly: 75, yearly: 825, limits: '12 landlords, 75 properties, 400 units, 15 staff', description: 'For a growing PMC team.' },
+            { name: 'Business', monthly: 150, yearly: 1650, limits: '35 landlords, 250 properties, 1,500 units, 40 staff', description: 'For established companies.' },
+            { name: 'Custom', monthly: 0, yearly: 0, limits: 'Custom landlords, properties, units, and staff', description: 'For larger property management companies needing custom limits.', customPrice: 'From $250' }
+          ]
+        },
+        addons: [
+          ['Extra 5 units', '$2/mo'],
+          ['Extra property', '$1.50/mo'],
+          ['Extra staff seat', '$3/mo'],
+          ['Extra 5GB storage', '$2/mo'],
+          ['Extra IPM / PMC connection', '$3/mo'],
+          ['Extra 50 PMC units', '$5/mo'],
+          ['Setup or import help', '$25-$100 once-off']
+        ]
+      },
+      MY: {
+        currency: 'RM',
+        label: 'Malaysia',
+        plans: {
+          landlord: [
+            { name: 'Free', monthly: 0, yearly: 0, limits: '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', description: 'For one-unit landlords and landlords invited by an IPM or PMC.', cta: 'Sign up for free', href: 'client.html?signup=landlord' },
+            { name: 'Starter', monthly: 19, yearly: 209, limits: '2 properties, 8 units, 1 staff, 1 IPM or PMC connection', description: 'For a small landlord who needs more than the free single-unit account.' },
+            { name: 'Growth', monthly: 59, yearly: 649, limits: '6 properties, 35 units, 3 staff, 2 IPM or PMC connections', description: 'For growing owners with multiple units.' },
+            { name: 'Portfolio', monthly: 149, yearly: 1639, limits: '20 properties, 120 units, 8 staff, 5 IPM or PMC connections', description: 'For larger private portfolios.' },
+            { name: 'Custom', monthly: 0, yearly: 0, limits: 'Custom properties, units, staff, and partner connections', description: 'For large or special portfolios needing negotiated limits.', customPrice: 'From RM349' }
+          ],
+          ipm: [
+            { name: 'Pro', monthly: 129, yearly: 1419, limits: '5 landlords, 20 properties, 80 units', description: 'For small Individual Portfolio Managers. IPM accounts have no free plan.' },
+            { name: 'Growth', monthly: 299, yearly: 3289, limits: '15 landlords, 60 properties, 250 units', description: 'For larger IPM operations.' },
+            { name: 'Portfolio', monthly: 599, yearly: 6589, limits: '40 landlords, 180 properties, 750 units', description: 'For established IPMs managing many landlords.' },
+            { name: 'Custom', monthly: 0, yearly: 0, limits: 'Custom landlords, properties, and units', description: 'For IPMs needing larger country-specific limits.', customPrice: 'From RM899' }
+          ],
+          pmc: [
+            { name: 'Starter', monthly: 249, yearly: 2739, limits: '3 landlords, 15 properties, 75 units, 5 staff', description: 'For a small Property Management Company.' },
+            { name: 'Growth', monthly: 649, yearly: 7139, limits: '12 landlords, 75 properties, 400 units, 15 staff', description: 'For a growing PMC team.' },
+            { name: 'Business', monthly: 1299, yearly: 14289, limits: '35 landlords, 250 properties, 1,500 units, 40 staff', description: 'For established companies.' },
+            { name: 'Custom', monthly: 0, yearly: 0, limits: 'Custom landlords, properties, units, and staff', description: 'For larger property management companies needing custom limits.', customPrice: 'From RM1,999' }
+          ]
+        },
+        addons: [
+          ['Extra 5 units', 'RM10/mo'],
+          ['Extra property', 'RM8/mo'],
+          ['Extra staff seat', 'RM18/mo'],
+          ['Extra 5GB storage', 'RM10/mo'],
+          ['Extra IPM / PMC connection', 'RM15/mo'],
+          ['Extra 50 PMC units', 'RM25/mo'],
+          ['Setup or import help', 'RM150-RM600 once-off']
+        ]
+      }
+    };
+
+    let selectedType = 'landlord';
+    const countrySelect = document.getElementById('countrySelect');
+    const pricingGrid = document.getElementById('pricingGrid');
+    const addonsGrid = document.getElementById('addonsGrid');
+    const tabButtons = [...document.querySelectorAll('.tabButton')];
+    const billingButtons = [...document.querySelectorAll('.billingButton')];
+    const locationNote = document.getElementById('locationNote');
+    let selectedBilling = 'monthly';
+
+    function currencySymbol(code) {
+      const normalized = String(code || '').toUpperCase();
+      if (normalized === 'MYR') return 'RM';
+      if (normalized === 'USD') return '$';
+      return normalized ? `${normalized} ` : '$';
+    }
+
+    function buildPricesFromRows(rows) {
+      const next = {};
+      rows.forEach(row => {
+        const countryCode = String(row.country_code || row.country_name || 'GLOBAL').toUpperCase();
+        if (!next[countryCode]) {
+          next[countryCode] = {
+            currency: currencySymbol(row.currency_code),
+            label: row.country_name || row.country_code || 'Global',
+            plans: { landlord: [], ipm: [], pmc: [] },
+            addons: PRICES[countryCode]?.addons || []
+          };
+        }
+        if (!next[countryCode].plans[row.account_type]) next[countryCode].plans[row.account_type] = [];
+        next[countryCode].plans[row.account_type].push({
+          name: row.plan_name,
+          monthly: Number(row.monthly_amount || 0),
+          yearly: Number(row.yearly_amount || 0),
+          limits: row.limits_summary || '',
+          description: row.description || '',
+          customPrice: row.custom_price_label || '',
+          cta: row.cta_label || (row.account_type === 'landlord' && row.plan_key === 'free' ? 'Sign up for free' : 'Enquire'),
+          href: row.cta_href || (row.account_type === 'landlord' && row.plan_key === 'free' ? 'client.html?signup=landlord' : 'contact.html'),
+          popular: Boolean(row.popular)
+        });
+      });
+      Object.values(next).forEach(country => {
+        Object.keys(country.plans).forEach(type => {
+          country.plans[type] = country.plans[type].filter(Boolean);
+        });
+      });
+      return { ...PRICES, ...next };
+    }
+
+    function refreshCountryOptions() {
+      const current = countrySelect.value;
+      countrySelect.innerHTML = Object.entries(PRICES).map(([code, data]) => `<option value="${code}">${data.label}</option>`).join('');
+      countrySelect.value = PRICES[current] ? current : Object.keys(PRICES)[0] || 'ZW';
+    }
+
+    function money(country, value) {
+      const data = PRICES[country];
+      if (value === 0) return 'Free';
+      return `${data.currency}${value.toLocaleString()}`;
+    }
+
+    function render() {
+      const country = countrySelect.value;
+      const billing = selectedBilling;
+      const data = PRICES[country];
+      if (!data) return;
+      tabButtons.forEach(button => {
+        const active = button.dataset.type === selectedType;
+        button.className = `tabButton rounded-2xl px-4 py-3 text-sm font-black transition ${active ? 'bg-brand text-white shadow-lg shadow-emerald-900/10' : 'text-slate-600 hover:bg-white/80'}`;
+      });
+      billingButtons.forEach(button => {
+        const active = button.dataset.billing === billing;
+        button.className = `billingButton rounded-xl px-4 py-2 text-sm font-black transition ${button.dataset.billing === 'yearly' ? 'leading-tight' : ''} ${active ? 'bg-brand text-white shadow-md shadow-emerald-900/10' : 'text-slate-600 hover:bg-white/80'}`;
+      });
+      pricingGrid.innerHTML = (data.plans[selectedType] || []).map((plan, index) => `
+        <article class="flex min-w-0 flex-col rounded-[2rem] border ${plan.popular || index === 1 ? 'border-emerald-300 bg-white/80' : 'border-white/70 bg-white/60'} p-6 shadow-glass backdrop-blur-xl">
+          ${plan.popular || index === 1 ? '<p class="mb-4 w-fit rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-brandDark">Popular</p>' : ''}
+          <h2 class="text-2xl font-black">${plan.name}</h2>
+          <p class="mt-3 min-h-[3rem] leading-7 text-slate-600">${plan.description}</p>
+          <p class="mt-6 text-4xl font-black">${plan.customPrice || money(country, plan[billing])}<span class="text-base font-bold text-slate-500">${plan.customPrice || plan[billing] === 0 ? '' : billing === 'monthly' ? '/mo' : '/yr'}</span></p>
+          <p class="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-brandDark">${plan.limits}</p>
+          <a href="${plan.href || 'contact.html'}" class="mt-6 inline-flex items-center justify-center rounded-2xl ${index === 1 ? 'bg-brand text-white hover:bg-brandDark' : 'border border-slate-200 bg-white/75 text-slate-950 hover:bg-white'} px-5 py-3 font-bold transition">${plan.cta || 'Enquire'}</a>
+        </article>
+      `).join('');
+      addonsGrid.innerHTML = (data.addons || []).map(([name, price]) => `
+        <div class="rounded-3xl border border-white/70 bg-white/70 p-5 shadow-sm backdrop-blur-xl">
+          <p class="font-bold">${name}</p>
+          <p class="mt-2 text-2xl font-black text-brandDark">${price}</p>
+        </div>
+      `).join('');
+    }
+
+    tabButtons.forEach(button => button.addEventListener('click', () => {
+      selectedType = button.dataset.type;
+      render();
+    }));
+    countrySelect.addEventListener('change', render);
+    billingButtons.forEach(button => button.addEventListener('click', () => {
+      selectedBilling = button.dataset.billing;
+      render();
+    }));
+
+    async function detectCountry() {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        if (timezone.includes('Harare')) {
+          countrySelect.value = 'ZW';
+          locationNote.textContent = 'We selected Zimbabwe based on your browser timezone. You can change it anytime.';
+          render();
+          return;
+        }
+        if (timezone.includes('Kuala_Lumpur')) {
+          countrySelect.value = 'MY';
+          locationNote.textContent = 'We selected Malaysia based on your browser timezone. You can change it anytime.';
+          render();
+          return;
+        }
+        const response = await fetch('https://ipapi.co/json/');
+        const result = await response.json();
+        if (result && PRICES[result.country_code]) {
+          countrySelect.value = result.country_code;
+          locationNote.textContent = `We selected ${PRICES[result.country_code].label} based on your location. You can change it anytime.`;
+          render();
+        }
+      } catch (error) {
+        locationNote.textContent = 'Choose your country to see local pricing.';
+      }
+    }
+
+    async function loadRemotePricingPlans() {
+      if (!pricingClient) return;
+      try {
+        const { data, error } = await pricingClient
+          .from('pricing_plans')
+          .select('country_code, country_name, currency_code, account_type, plan_key, plan_name, display_order, monthly_amount, yearly_amount, custom_price_label, description, limits_summary, cta_label, cta_href, popular, public_active')
+          .eq('public_active', true)
+          .order('display_order', { ascending: true });
+        if (error || !data?.length) return;
+        PRICES = buildPricesFromRows(data);
+        refreshCountryOptions();
+        render();
+      } catch (error) {
+        console.warn('Pricing plans could not be loaded.', error);
+      }
+    }
+
+    document.getElementById('menuButton')?.addEventListener('click', () => document.getElementById('mobileMenu').classList.toggle('hidden'));
+    refreshCountryOptions();
+    render();
+    loadRemotePricingPlans().finally(detectCountry);
+  </script>
+</body>
+</html>

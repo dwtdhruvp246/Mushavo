@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mushavo | Your property, handled simply.</title>
+  <meta name="description" content="Mushavo helps landlords, individual portfolio managers, and property management companies manage properties, tenants, leases, payments, and maintenance.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="i18n.js" defer></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#0f172a',
+            muted: '#64748b',
+            brand: '#00806b',
+            brandDark: '#075e56'
+          },
+          boxShadow: {
+            glass: '0 24px 80px rgba(15, 23, 42, 0.12)'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden bg-[#eefbf7] text-ink">
+  <div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute left-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-emerald-200/60 blur-3xl"></div>
+    <div class="absolute right-[-10rem] top-20 h-96 w-96 rounded-full bg-cyan-200/50 blur-3xl"></div>
+    <div class="absolute bottom-[-12rem] left-1/3 h-96 w-96 rounded-full bg-teal-100 blur-3xl"></div>
+  </div>
+
+  <header class="sticky top-0 z-40 border-b border-white/50 bg-white/55 backdrop-blur-2xl">
+    <div class="mx-auto flex w-full max-w-[96rem] items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <a href="index.html" class="flex min-w-0 items-center gap-3">
+        <img src="mushavo-logo.png" alt="Mushavo logo" class="h-[7.875rem] w-auto sm:h-36">
+      </a>
+      <button id="menuButton" class="inline-flex items-center rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-semibold shadow-sm md:hidden" type="button" aria-expanded="false" aria-controls="mobileMenu">
+        Menu
+      </button>
+      <nav class="hidden items-center gap-2 md:flex">
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="about.html">About</a>
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="pricing.html">Pricing</a>
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="contact.html">Contact</a>
+        <a class="rounded-2xl border border-emerald-200 bg-white/70 px-4 py-2 text-sm font-bold text-brandDark shadow-sm transition hover:bg-white" href="client.html">Client Area</a>
+      </nav>
+    </div>
+    <nav id="mobileMenu" class="mx-auto hidden w-full max-w-[96rem] px-4 pb-4 sm:px-6 md:hidden">
+      <div class="grid gap-2 rounded-3xl border border-white/70 bg-white/70 p-3 shadow-glass backdrop-blur-xl">
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="about.html">About</a>
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="pricing.html">Pricing</a>
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="contact.html">Contact</a>
+        <a class="rounded-2xl bg-brand px-4 py-3 text-sm font-bold text-white" href="client.html">Client Area</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="mx-auto grid w-full max-w-[96rem] items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-20">
+      <div class="min-w-0">
+        <p class="mb-4 inline-flex rounded-full border border-emerald-200 bg-white/70 px-4 py-2 text-sm font-bold text-brandDark shadow-sm backdrop-blur-xl">Property management software for landlords, IPMs, and PMCs</p>
+        <h1 class="max-w-4xl text-4xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl lg:text-7xl">One place for rent, leases, tenants, maintenance, and property teams.</h1>
+        <p class="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">Mushavo helps property owners and managers run daily operations from a clear online workspace: properties, units, tenants, lease documents, payment proof, maintenance issues, staff permissions, and subscriptions.</p>
+        <div class="mt-6 flex flex-wrap gap-2 text-sm font-bold text-slate-700">
+          <span class="rounded-full border border-white/70 bg-white/70 px-4 py-2 shadow-sm">Landlords</span>
+          <span class="rounded-full border border-white/70 bg-white/70 px-4 py-2 shadow-sm">Individual Portfolio Managers</span>
+          <span class="rounded-full border border-white/70 bg-white/70 px-4 py-2 shadow-sm">Property Management Companies</span>
+        </div>
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          <a href="pricing.html" class="inline-flex items-center justify-center rounded-2xl bg-brand px-6 py-4 text-base font-bold text-white shadow-lg shadow-emerald-900/10 transition hover:bg-brandDark">View Pricing</a>
+          <a href="client.html" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white/75 px-6 py-4 text-base font-bold text-slate-900 shadow-sm backdrop-blur-xl transition hover:bg-white">Go to Client Area</a>
+        </div>
+      </div>
+
+      <div class="rounded-[2rem] border border-white/70 bg-white/45 p-3 shadow-glass backdrop-blur-2xl">
+        <div class="overflow-hidden rounded-[1.5rem] border border-white/70 bg-white/70">
+          <div class="flex items-center justify-between border-b border-slate-200/70 px-5 py-4">
+            <div>
+              <p class="text-sm font-semibold text-slate-500">Live operating view</p>
+              <p class="text-xl font-black text-slate-950">Mushavo Workspace</p>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-brandDark">Active</span>
+          </div>
+          <div class="grid gap-3 p-5 sm:grid-cols-2">
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Properties</p>
+              <p class="mt-3 text-4xl font-black">12</p>
+            </div>
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Units</p>
+              <p class="mt-3 text-4xl font-black text-brandDark">84</p>
+            </div>
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Open issues</p>
+              <p class="mt-3 text-4xl font-black text-amber-600">6</p>
+            </div>
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Rent recorded</p>
+              <p class="mt-3 text-4xl font-black text-brandDark">$9.8k</p>
+            </div>
+          </div>
+          <div class="border-t border-slate-200/70 p-5">
+            <div class="rounded-3xl bg-slate-950 p-5 text-white">
+              <p class="text-sm font-semibold text-emerald-200">This week</p>
+              <p class="mt-2 text-2xl font-black">8 payments verified, 3 leases expiring soon, 4 maintenance tasks resolved.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div class="mb-6 max-w-3xl">
+        <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">What Mushavo is</p>
+        <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">A practical command centre for property operations.</h2>
+        <p class="mt-3 leading-8 text-slate-600">Instead of keeping records in chats, notebooks, spreadsheets, and separate folders, Mushavo keeps the important work connected to the right property, unit, tenant, landlord, staff member, and document.</p>
+      </div>
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[1.75rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-xl">
+          <h2 class="text-xl font-black">For landlords</h2>
+          <p class="mt-3 leading-7 text-slate-600">Create properties and units, invite tenants, log rent, upload lease PDFs, handle maintenance, and control what staff can see or change.</p>
+        </article>
+        <article class="rounded-[1.75rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-xl">
+          <h2 class="text-xl font-black">For individual portfolio managers</h2>
+          <p class="mt-3 leading-7 text-slate-600">Work with multiple landlords, request access with a landlord code, and manage only the accounts and properties you are approved for.</p>
+        </article>
+        <article class="rounded-[1.75rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-xl">
+          <h2 class="text-xl font-black">For property management companies</h2>
+          <p class="mt-3 leading-7 text-slate-600">Connect with landlords, assign company staff, manage permissions, and organize work across properties without mixing client records.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div class="rounded-[2rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-2xl sm:p-8 lg:p-10">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">What it manages</p>
+            <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">The everyday property work that usually gets scattered.</h2>
+          </div>
+          <p class="max-w-2xl leading-8 text-slate-600">Mushavo is designed around the real workflow: create the property, assign the unit, link the tenant, store the lease, track rent, handle issues, and keep every action accountable.</p>
+        </div>
+        <div class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Properties and units</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Track property details, unit status, occupancy, and vacancy in one place.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Tenants and leases</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Keep tenant profiles, active leases, deposits, lease dates, and PDF agreements linked.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Payments and proof</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Let tenants upload proof, then review, verify, reject, or log payments manually.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Maintenance</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Create issues with photos, assign work, update progress, and keep resolution notes.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Staff permissions</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Choose exactly who can view, add, edit, upload, approve, archive, or manage records.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Subscriptions by market</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Support country-based pricing, account limits, and renewals as Mushavo expands.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-12 sm:px-6 lg:px-8">
+      <div class="rounded-[2rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-2xl sm:p-8 lg:p-10">
+        <div class="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div>
+            <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">Why Mushavo</p>
+            <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Less chasing. More control.</h2>
+            <p class="mt-4 leading-8 text-slate-600">Property work becomes messy when rent records, lease PDFs, maintenance photos, approvals, and staff permissions live in different places. Mushavo brings them together without making the system feel heavy.</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Lease and file storage</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Upload agreements, payment proof, and maintenance photos securely.</p>
+            </div>
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Permission control</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Give staff and managers only the access they need.</p>
+            </div>
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Country pricing</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Show plans that match the market where each account operates.</p>
+            </div>
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Clear operations</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Track rent, maintenance, tenants, units, and subscriptions from one place.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div class="grid gap-4 lg:grid-cols-4">
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">01</p>
+          <h3 class="mt-3 text-xl font-black">Create the account</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Admin creates landlords, IPMs, PMCs, and country-based subscriptions.</p>
+        </div>
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">02</p>
+          <h3 class="mt-3 text-xl font-black">Add the portfolio</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Landlords add properties and units, then link tenants and leases.</p>
+        </div>
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">03</p>
+          <h3 class="mt-3 text-xl font-black">Control access</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Permissions decide what each staff member, IPM, or PMC can do.</p>
+        </div>
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">04</p>
+          <h3 class="mt-3 text-xl font-black">Run daily work</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Payments, maintenance, documents, reminders, and records stay connected.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-[96rem] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+      <div class="rounded-[2rem] bg-slate-950 p-8 text-white shadow-glass sm:p-10">
+        <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-3xl font-black">Ready to run property work with less stress?</h2>
+            <p class="mt-3 max-w-2xl text-slate-300">Explore the plans, then sign into your client area when your account is created.</p>
+          </div>
+          <a href="pricing.html" class="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white px-6 py-4 font-bold text-slate-950 transition hover:bg-emerald-50">See Plans</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-white/60 bg-white/50 backdrop-blur-xl">
+    <div class="mx-auto flex w-full max-w-[96rem] flex-col gap-4 px-4 py-8 text-sm text-slate-600 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+      <p>All rights reserved to Mushavo.</p>
+      <div class="flex flex-wrap gap-4">
+        <a class="font-semibold text-brandDark" href="contact.html">Contact Support</a>
+        <a class="font-semibold text-brandDark" href="client.html">Client Area</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const menuButton = document.getElementById('menuButton');
+    const mobileMenu = document.getElementById('mobileMenu');
+    menuButton?.addEventListener('click', () => {
+      const isOpen = !mobileMenu.classList.contains('hidden');
+      mobileMenu.classList.toggle('hidden');
+      menuButton.setAttribute('aria-expanded', String(!isOpen));
+    });
+  </script>
+</body>
+</html>
