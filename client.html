@@ -5846,6 +5846,7 @@
           landlord: null,
           activeLease: null,
           leases: [],
+          charges: [],
           payments: [],
           paymentSubmissions: [],
           maintenanceRequests: [],
@@ -12399,6 +12400,22 @@
           return outstanding;
         },
 
+        expectedDueRentPeriodCount(lease, throughDate = new Date()) {
+          if (!lease?.id || !lease?.start_date) return 0;
+
+          const leaseStart = this.monthStart(lease.start_date);
+          const currentMonth = this.monthStart(throughDate);
+          const leaseEnd = lease.end_date ? this.monthStart(lease.end_date) : null;
+          if (!leaseStart || !currentMonth || leaseStart > currentMonth) return 0;
+
+          const lastDueMonth = leaseEnd && leaseEnd < currentMonth ? leaseEnd : currentMonth;
+          let count = 0;
+          for (let cursor = leaseStart; cursor <= lastDueMonth; cursor = this.addMonths(cursor, 1)) {
+            count += 1;
+          }
+          return count;
+        },
+
         paymentPeriodLabel(row) {
           if (row?.rent_period_label) return row.rent_period_label;
           if (this.isDepositPayment(row)) return 'Deposit';
@@ -14201,6 +14218,7 @@
             this.tenant.landlord = null;
             this.tenant.activeLease = null;
             this.tenant.leases = [];
+            this.tenant.charges = [];
             this.tenant.payments = [];
             this.tenant.paymentSubmissions = [];
             this.tenant.maintenanceRequests = [];
@@ -14241,6 +14259,7 @@
           const leaseIds = this.tenant.leases.map(lease => lease.id);
 
           if (leaseIds.length === 0) {
+            this.tenant.charges = [];
             this.tenant.payments = [];
             this.tenant.paymentSubmissions = [];
             this.tenant.maintenanceRequests = [];
@@ -14250,7 +14269,12 @@
             return;
           }
 
-          const [paymentsResult, submissionsResult, maintenanceResult] = await Promise.all([
+          const [chargesResult, paymentsResult, submissionsResult, maintenanceResult] = await Promise.all([
+            supabaseClient
+              .from('lease_charges')
+              .select('id, lease_id, charge_type, charge_status, due_date, period_start, period_end, description, amount, amount_paid, created_at')
+              .in('lease_id', leaseIds)
+              .order('due_date', { ascending: true }),
             supabaseClient
               .from('payments')
               .select('id, lease_id, submission_id, amount_paid, payment_date, payment_method, rent_period_start, rent_period_end, rent_period_label, payment_purpose, purpose_description, is_historical, notes, receipt_number, recorded_by, created_at, leases(id, monthly_rent, tenants(id, full_name, email), units(id, unit_number, property_id, properties(id, name, address, city)))')
@@ -14269,13 +14293,14 @@
               .order('created_at', { ascending: false })
           ]);
 
-          const firstError = paymentsResult.error || submissionsResult.error || maintenanceResult.error;
+          const firstError = chargesResult.error || paymentsResult.error || submissionsResult.error || maintenanceResult.error;
           if (firstError) {
             this.tenant.error = firstError.message;
             this.finishDataLoad('tenant', this.tenant);
             return;
           }
 
+          this.tenant.charges = chargesResult.data || [];
           this.tenant.payments = (paymentsResult.data || []).map(payment => this.normalizePayment(payment));
           this.tenant.paymentSubmissions = submissionsResult.data || [];
           this.tenant.maintenanceRequests = maintenanceResult.data || [];
@@ -14338,6 +14363,21 @@
         tenantCurrentBalance() {
           const activeLease = this.tenant.activeLease;
           if (!activeLease) return 0;
+
+          const todayKey = this.toIsoDate(new Date());
+          const rentCharges = (this.tenant.charges || []).filter(charge =>
+            charge.lease_id === activeLease.id
+            && charge.charge_type === 'rent'
+            && charge.charge_status !== 'void'
+            && (!charge.due_date || charge.due_date <= todayKey)
+          );
+          if (rentCharges.length >= this.expectedDueRentPeriodCount(activeLease)) {
+            return rentCharges.reduce((sum, charge) => {
+              const amount = Number(charge.amount || 0);
+              const paid = Number(charge.amount_paid || 0);
+              return sum + Math.max(amount - paid, 0);
+            }, 0);
+          }
 
           return this.rentOutstandingBalance(activeLease, this.tenant.payments);
         },
