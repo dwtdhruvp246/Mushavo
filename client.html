@@ -6989,7 +6989,7 @@
             if (!byId.has(countryId)) byId.set(countryId, { id: countryId, name: this.adminCountryName(countryId), code: '', currency_code: '', landlords: 0, revenue: 0 });
             byId.get(countryId).revenue += Number(payment.amount_paid || 0);
           });
-          let values = Array.from(byId.values()).filter(row => row.id !== 'unassigned' || row.landlords || row.revenue);
+          let values = Array.from(byId.values()).filter(row => row.landlords > 0);
           if (this.profile?.role === 'admin_staff') {
             const allowed = new Set(this.adminStaffCountryIds());
             values = values.filter(row => allowed.has(row.id));
