@@ -3686,8 +3686,8 @@
                   <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
-                        <h1 class="text-xl font-bold text-slate-900">Payments</h1>
-                        <p class="mt-1 text-sm text-slate-500">Review tenant submissions, verify rent, and download receipts.</p>
+                        <h1 class="text-xl font-bold text-slate-900" x-text="partnerFinanceMode() ? 'Landlord Payments' : 'Payments'"></h1>
+                        <p class="mt-1 text-sm text-slate-500" x-text="partnerFinanceMode() ? 'Review rent payments submitted under your connected landlords.' : 'Review tenant submissions, verify rent, and download receipts.'"></p>
                       </div>
                       <div class="flex flex-wrap gap-2">
                         <button x-show="canVerifyPayments()" class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="openManualPaymentModal">Log Payment Manually</button>
@@ -3899,8 +3899,8 @@
                   <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div>
-                        <h1 class="text-xl font-bold text-slate-900">Finance</h1>
-                        <p class="mt-1 text-sm text-slate-500">Track revenue generated from verified rent payments. Refundable deposits are not counted as revenue.</p>
+                        <h1 class="text-xl font-bold text-slate-900" x-text="partnerFinanceMode() ? 'Personal Finance' : 'Finance'"></h1>
+                        <p class="mt-1 text-sm text-slate-500" x-text="partnerFinanceMode() ? 'Record payments received from connected landlords and track your own IPM/PMC income.' : 'Track revenue generated from verified rent payments. Refundable deposits are not counted as revenue.'"></p>
                       </div>
                       <div class="flex flex-wrap gap-2">
                         <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="downloadFinanceCsv" :disabled="filteredFinancePayments().length === 0">Download CSV</button>
@@ -3914,9 +3914,9 @@
 
                     <div class="mt-5 grid gap-3 lg:grid-cols-4">
                       <label class="block">
-                        <span class="mb-2 block text-sm font-medium text-slate-700">Property</span>
+                        <span class="mb-2 block text-sm font-medium text-slate-700" x-text="partnerFinanceMode() ? 'Landlord' : 'Property'"></span>
                         <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="finance.filters.property" x-effect='$nextTick(() => { $el.value = finance.filters.property ?? "" })'>
-                          <option value="">All properties</option>
+                          <option value="" x-text="partnerFinanceMode() ? 'All landlords' : 'All properties'"></option>
                           <template x-for="property in financePropertyOptions()" :key="property">
                             <option :value="property" x-text="property"></option>
                           </template>
@@ -3932,14 +3932,57 @@
                       </label>
                       <label class="block">
                         <span class="mb-2 block text-sm font-medium text-slate-700">Search</span>
-                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="search" x-model.trim="finance.filters.search" placeholder="Tenant, unit, receipt">
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="search" x-model.trim="finance.filters.search" :placeholder="partnerFinanceMode() ? 'Search landlord, period, notes' : 'Tenant, unit, receipt'">
                       </label>
                     </div>
                   </section>
 
+                  <section x-show="partnerFinanceMode()" class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <h2 class="text-lg font-bold text-slate-900">Record Landlord Payment</h2>
+                        <p class="mt-1 text-sm text-slate-500">Use this for payments your connected landlords make to your IPM or PMC account.</p>
+                      </div>
+                    </div>
+                    <form class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4" @submit.prevent="savePartnerPayment">
+                      <label class="block md:col-span-2 xl:col-span-1">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Landlord</span>
+                        <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="finance.partnerPaymentForm.landlordId" required x-effect='$nextTick(() => { $el.value = finance.partnerPaymentForm.landlordId ?? "" })'>
+                          <option value="">Select landlord</option>
+                          <template x-for="landlord in ownerStatementLandlordOptions()" :key="landlord.id">
+                            <option :value="landlord.id" x-text="landlord.label"></option>
+                          </template>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Amount</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="finance.partnerPaymentForm.amount" required>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Paid date</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="date" x-model="finance.partnerPaymentForm.paidAt" required>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Period start</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="date" x-model="finance.partnerPaymentForm.periodStart" required>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Period end</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="date" x-model="finance.partnerPaymentForm.periodEnd" required>
+                      </label>
+                      <label class="block md:col-span-2 xl:col-span-3">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Notes</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="finance.partnerPaymentForm.notes" placeholder="Optional payment notes">
+                      </label>
+                      <div class="flex items-end">
+                        <button class="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="submit" :disabled="finance.partnerPaymentSaving || !canRecordPartnerPayment()">Record Payment</button>
+                      </div>
+                    </form>
+                  </section>
+
                   <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
-                      <p class="text-sm font-medium text-slate-500">Total Revenue</p>
+                      <p class="text-sm font-medium text-slate-500" x-text="partnerFinanceMode() ? 'Total Received' : 'Total Revenue'"></p>
                       <p class="mt-2 text-3xl font-bold text-emerald-700" x-text="formatCurrency(filteredFinanceSummary().totalRevenue)"></p>
                     </article>
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
@@ -4036,7 +4079,7 @@
                   <section class="grid gap-6 xl:grid-cols-2">
                     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft xl:col-span-2">
                       <div class="border-b border-slate-200 px-4 py-3">
-                        <h2 class="text-sm font-semibold text-slate-900">Monthly Revenue</h2>
+                        <h2 class="text-sm font-semibold text-slate-900" x-text="partnerFinanceMode() ? 'Monthly Income' : 'Monthly Revenue'"></h2>
                       </div>
                       <div class="grid min-h-56 items-end gap-3 p-5 sm:grid-cols-6 lg:grid-cols-12">
                         <template x-if="financeChartBars().length === 0">
@@ -4054,15 +4097,15 @@
 
                     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
                       <div class="border-b border-slate-200 px-4 py-3">
-                        <h2 class="text-sm font-semibold text-slate-900">Revenue by Property</h2>
+                        <h2 class="text-sm font-semibold text-slate-900" x-text="partnerFinanceMode() ? 'Payments by Landlord' : 'Revenue by Property'"></h2>
                       </div>
                       <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-slate-200 text-left text-[13px]">
                           <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                            <tr><th class="px-4 py-3 font-semibold">Property</th><th class="px-4 py-3 font-semibold">Payments</th><th class="px-4 py-3 font-semibold">Revenue</th></tr>
+                            <tr><th class="px-4 py-3 font-semibold" x-text="partnerFinanceMode() ? 'Landlord' : 'Property'"></th><th class="px-4 py-3 font-semibold">Payments</th><th class="px-4 py-3 font-semibold" x-text="partnerFinanceMode() ? 'Received' : 'Revenue'"></th></tr>
                           </thead>
                           <tbody class="divide-y divide-slate-200">
-                            <template x-if="!finance.loading && filteredFinanceByProperty().length === 0"><tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="3">No revenue yet.</td></tr></template>
+                            <template x-if="!finance.loading && filteredFinanceByProperty().length === 0"><tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="3" x-text="partnerFinanceMode() ? 'No landlord payments yet.' : 'No revenue yet.'"></td></tr></template>
                             <template x-for="row in filteredFinanceByProperty()" :key="row.property">
                               <tr><td class="px-4 py-3 font-semibold text-slate-900" x-text="row.property"></td><td class="px-4 py-3 text-slate-700" x-text="row.count"></td><td class="px-4 py-3 text-slate-700" x-text="formatCurrency(row.total)"></td></tr>
                             </template>
@@ -4078,10 +4121,10 @@
                       <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-slate-200 text-left text-[13px]">
                           <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                            <tr><th class="px-4 py-3 font-semibold">Tenant</th><th class="px-4 py-3 font-semibold">Unit</th><th class="px-4 py-3 font-semibold">Period</th><th class="px-4 py-3 font-semibold">Amount</th><th class="px-4 py-3 font-semibold">Date</th><th class="px-4 py-3 font-semibold">Notes</th><th class="px-4 py-3 font-semibold">Actions</th></tr>
+                            <tr><th class="px-4 py-3 font-semibold" x-text="partnerFinanceMode() ? 'Landlord' : 'Tenant'"></th><th class="px-4 py-3 font-semibold">Unit</th><th class="px-4 py-3 font-semibold">Period</th><th class="px-4 py-3 font-semibold">Amount</th><th class="px-4 py-3 font-semibold">Date</th><th class="px-4 py-3 font-semibold">Notes</th><th class="px-4 py-3 font-semibold">Actions</th></tr>
                           </thead>
                           <tbody class="divide-y divide-slate-200">
-                            <template x-if="!finance.loading && filteredFinancePayments().length === 0"><tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="7">No verified payments.</td></tr></template>
+                            <template x-if="!finance.loading && filteredFinancePayments().length === 0"><tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="7" x-text="partnerFinanceMode() ? 'No landlord payments recorded.' : 'No verified payments.'"></td></tr></template>
                             <template x-for="payment in filteredFinancePayments().slice(0, 20)" :key="payment.id">
                               <tr><td class="px-4 py-3 font-semibold text-slate-900" x-text="payment.tenant"></td><td class="px-4 py-3 text-slate-700" x-text="payment.unit"></td><td class="px-4 py-3 text-slate-700" x-text="payment.period"></td><td class="px-4 py-3 text-slate-700" x-text="formatCurrency(payment.amount)"></td><td class="px-4 py-3 text-slate-700" x-text="formatDate(payment.date)"></td><td class="max-w-48 truncate px-4 py-3 text-slate-700" x-text="payment.notes || '-'"></td><td class="px-4 py-3"><button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="downloadReceipt(payment)">Download Receipt</button></td></tr>
                             </template>
@@ -5864,6 +5907,15 @@
           payments: [],
           byProperty: [],
           reconciliations: [],
+          partnerPaymentSaving: false,
+          partnerPaymentForm: {
+            landlordId: '',
+            amount: '',
+            paidAt: '',
+            periodStart: '',
+            periodEnd: '',
+            notes: ''
+          },
           reconciliationSaving: false,
           reconciliationForm: {
             landlordId: '',
@@ -6609,7 +6661,7 @@
           if (page === 'tenants') return false;
           if (page === 'dashboard' || page === 'notifications' || page === 'settings') return true;
           if (page === 'my-account') return ['landlord', 'management_leader'].includes(this.profile?.role) || (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer');
-          if (page === 'finance') return this.profile?.role === 'landlord' || Boolean(this.permissions.can_view_finance);
+          if (page === 'finance') return this.profile?.role === 'landlord' || this.canUsePartnerFinance() || Boolean(this.permissions.can_view_finance);
           if (page === 'management-landlords') return this.profile?.role === 'management_leader' || (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer');
           if (page === 'staff') return this.profile?.role === 'landlord' || this.profile?.role === 'management_leader' || Boolean(this.permissions.can_manage_staff);
           return this.canShowAppPage(page);
@@ -10648,12 +10700,13 @@
         },
 
         appNavItems() {
+          const partnerMode = this.partnerFinanceMode();
           const items = [
             { page: 'dashboard', label: 'Dashboard', icon: 'dashboard', visible: true },
             { page: 'properties', label: 'Properties', icon: 'building', visible: this.canShowAppPage('properties') },
             { page: 'leases', label: 'Leases', icon: 'file', visible: this.canShowAppPage('leases') },
-            { page: 'payments', label: 'Payments', icon: 'card', visible: this.canShowAppPage('payments') },
-            { page: 'finance', label: 'Finance', icon: 'chart', visible: this.canShowAppPage('finance') },
+            { page: 'payments', label: partnerMode ? 'Landlord Payments' : 'Payments', icon: 'card', visible: this.canShowAppPage('payments') },
+            { page: 'finance', label: partnerMode ? 'Personal Finance' : 'Finance', icon: 'chart', visible: this.canShowAppPage('finance') },
             { page: 'maintenance', label: 'Maintenance', icon: 'wrench', visible: this.canShowAppPage('maintenance') },
             { page: 'management-landlords', label: 'Landlords', icon: 'building', visible: this.profile?.role === 'management_leader' || (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') },
             { page: 'staff', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'landlord' || this.profile?.role === 'management_leader' || Boolean(this.permissions.can_manage_staff) },
@@ -10699,7 +10752,7 @@
             properties: true,
             leases: true,
             payments: true,
-            finance: true,
+            finance: this.profile?.role === 'landlord' || this.canUsePartnerFinance() || Boolean(this.permissions.can_view_finance),
             maintenance: true
           };
 
@@ -11315,6 +11368,26 @@
 
         canViewFinancials() {
           return this.profile?.role === 'landlord' || Boolean(this.permissions.can_view_finance || this.permissions.can_view_payments || this.permissions.can_verify_payments);
+        },
+
+        partnerFinanceMode() {
+          return (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer')
+            || this.profile?.role === 'management_leader'
+            || this.profile?.role === 'management_staff';
+        },
+
+        canUsePartnerFinance() {
+          if (!this.partnerFinanceMode()) return false;
+          if (this.profile?.role === 'management_staff') {
+            return Boolean(this.permissions.can_view_finance || this.permissions.can_log_payments || this.permissions.can_view_payments);
+          }
+          return true;
+        },
+
+        canRecordPartnerPayment() {
+          if (!this.partnerFinanceMode()) return false;
+          if (this.profile?.role === 'management_staff') return Boolean(this.permissions.can_log_payments);
+          return true;
         },
 
         canManageLeases() {
@@ -12313,8 +12386,146 @@
           this.finishDataLoad('payments', this.payments);
         },
 
+        async loadFinanceData() {
+          if (this.partnerFinanceMode()) {
+            await this.loadPartnerFinanceData();
+            return;
+          }
+          await this.loadLandlordFinanceData();
+        },
+
+        async loadPartnerFinanceData() {
+          if (!this.canUsePartnerFinance()) return;
+
+          this.beginDataLoad('finance', this.finance);
+          this.finance.error = '';
+          if (!this.finance.partnerPaymentForm.paidAt) this.resetPartnerPaymentForm();
+
+          const context = this.ownerStatementPartnerContext();
+          if (!context || (context.partnerType === 'pmc' && !context.managementCompanyId)) {
+            this.finance.error = 'Personal finance could not be loaded for this account.';
+            this.finance.payments = [];
+            this.finance.reconciliations = [];
+            this.finance.byProperty = [];
+            this.finance.stats = { totalRevenue: 0, monthRevenue: 0, yearRevenue: 0, averagePayment: 0 };
+            this.finishDataLoad('finance', this.finance);
+            return;
+          }
+
+          let paymentQuery = supabaseClient
+            .from('partner_payments')
+            .select('id, partner_type, partner_staff_id, management_company_id, landlord_id, amount_paid, paid_at, period_start, period_end, notes, recorded_by, created_at')
+            .eq('partner_type', context.partnerType)
+            .order('paid_at', { ascending: false });
+
+          let statementQuery = supabaseClient
+            .from('partner_reconciliations')
+            .select('id, partner_type, partner_staff_id, management_company_id, landlord_id, period_start, period_end, gross_collected, management_fee, expenses, owner_distribution, status, notes, submitted_by, reviewed_by, submitted_at, approved_at, rejected_at, paid_at, created_at')
+            .eq('partner_type', context.partnerType)
+            .order('period_end', { ascending: false });
+
+          if (context.partnerType === 'ipm') {
+            paymentQuery = paymentQuery.eq('partner_staff_id', context.partnerStaffId);
+            statementQuery = statementQuery.eq('partner_staff_id', context.partnerStaffId);
+          } else {
+            paymentQuery = paymentQuery.eq('management_company_id', context.managementCompanyId);
+            statementQuery = statementQuery.eq('management_company_id', context.managementCompanyId);
+          }
+
+          const [paymentsResult, statementsResult] = await Promise.all([paymentQuery, statementQuery]);
+
+          const firstError = paymentsResult.error || statementsResult.error;
+          if (firstError) {
+            this.finance.error = this.friendlyDatabaseError(firstError, 'Personal finance data could not be loaded.');
+            this.finishDataLoad('finance', this.finance);
+            return;
+          }
+
+          const partnerRows = paymentsResult.data || [];
+          const statements = statementsResult.data || [];
+          const landlordIds = [...new Set([
+            ...partnerRows.map(payment => payment.landlord_id),
+            ...statements.map(statement => statement.landlord_id)
+          ].filter(Boolean))];
+          const profileIds = [...new Set([
+            ...landlordIds,
+            ...partnerRows.map(payment => payment.recorded_by),
+            ...statements.flatMap(statement => [statement.partner_staff_id, statement.submitted_by, statement.reviewed_by])
+          ].filter(Boolean))];
+          const companyIds = [...new Set(statements.map(statement => statement.management_company_id).filter(Boolean))];
+          let profileMap = new Map();
+          let companyMap = new Map();
+
+          if (profileIds.length > 0) {
+            const { data: profiles } = await supabaseClient
+              .from('profiles')
+              .select('id, full_name, email')
+              .in('id', profileIds);
+            profileMap = new Map((profiles || []).map(row => [row.id, row.full_name || row.email || 'User']));
+          }
+
+          if (companyIds.length > 0) {
+            const { data: companies } = await supabaseClient
+              .from('management_companies')
+              .select('id, company_name, leader_name')
+              .in('id', companyIds);
+            companyMap = new Map((companies || []).map(row => [row.id, row.company_name || row.leader_name || 'PMC']));
+          }
+
+          const payments = partnerRows.map(payment => {
+            const landlordName = profileMap.get(payment.landlord_id) || 'Landlord';
+            return {
+              id: payment.id,
+              amount: Number(payment.amount_paid || 0),
+              date: payment.paid_at || payment.created_at,
+              method: 'Recorded payment',
+              period: `${this.formatDate(payment.period_start)} - ${this.formatDate(payment.period_end)}`,
+              notes: payment.notes || '',
+              receipt: '',
+              purpose: 'partner_payment',
+              purposeDescription: 'Partner payment',
+              isRevenue: true,
+              tenant: landlordName,
+              unit: '-',
+              property: landlordName,
+              propertyAddress: '',
+              landlordId: payment.landlord_id,
+              landlordName
+            };
+          });
+
+          const now = new Date();
+          const monthKey = now.toISOString().slice(0, 7);
+          const yearKey = String(now.getFullYear());
+          const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
+          const byLandlordMap = new Map();
+          payments.forEach(payment => {
+            const current = byLandlordMap.get(payment.property) || { property: payment.property, count: 0, total: 0 };
+            current.count += 1;
+            current.total += payment.amount;
+            byLandlordMap.set(payment.property, current);
+          });
+
+          this.finance.payments = payments;
+          this.finance.reconciliations = statements.map(statement => ({
+            ...statement,
+            landlordName: profileMap.get(statement.landlord_id) || 'Landlord',
+            partnerName: statement.partner_type === 'pmc'
+              ? (companyMap.get(statement.management_company_id) || 'PMC')
+              : (profileMap.get(statement.partner_staff_id) || profileMap.get(statement.submitted_by) || 'IPM')
+          }));
+          this.finance.byProperty = Array.from(byLandlordMap.values()).sort((a, b) => b.total - a.total);
+          this.finance.stats = {
+            totalRevenue,
+            monthRevenue: payments.filter(payment => String(payment.date || '').slice(0, 7) === monthKey).reduce((sum, payment) => sum + payment.amount, 0),
+            yearRevenue: payments.filter(payment => String(payment.date || '').slice(0, 4) === yearKey).reduce((sum, payment) => sum + payment.amount, 0),
+            averagePayment: payments.length ? totalRevenue / payments.length : 0
+          };
+          this.finishDataLoad('finance', this.finance);
+        },
+
         async loadLandlordFinanceData() {
-          if (!this.canViewFinancials()) return;
+          if (this.profile?.role !== 'landlord' || !this.canViewFinancials()) return;
 
           this.beginDataLoad('finance', this.finance);
           this.finance.error = '';
@@ -12419,9 +12630,11 @@
         },
 
         canManageOwnerStatements() {
-          if (!this.canViewFinancials()) return false;
-          if (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') return true;
-          return ['management_leader', 'management_staff'].includes(this.profile?.role);
+          if (!this.partnerFinanceMode()) return false;
+          if (this.profile?.role === 'management_staff') {
+            return Boolean(this.permissions.can_view_finance || this.permissions.can_log_payments || this.permissions.can_view_payments);
+          }
+          return true;
         },
 
         ownerStatementPartnerContext() {
@@ -12469,6 +12682,18 @@
             grossCollected: '',
             managementFee: '',
             expenses: '',
+            notes: ''
+          };
+        },
+
+        resetPartnerPaymentForm() {
+          const today = this.toIsoDate(new Date());
+          this.finance.partnerPaymentForm = {
+            landlordId: '',
+            amount: '',
+            paidAt: today,
+            periodStart: today,
+            periodEnd: today,
             notes: ''
           };
         },
@@ -12540,7 +12765,7 @@
           }
 
           this.resetOwnerStatementForm();
-          await this.loadLandlordFinanceData();
+          await this.loadFinanceData();
         },
 
         async updateOwnerStatementStatus(statement, status) {
@@ -12574,7 +12799,49 @@
             return;
           }
 
-          await this.loadLandlordFinanceData();
+          await this.loadFinanceData();
+        },
+
+        async savePartnerPayment() {
+          this.finance.error = '';
+          if (!this.canRecordPartnerPayment()) {
+            this.finance.error = 'You do not have permission to record payments.';
+            return;
+          }
+
+          const context = this.ownerStatementPartnerContext();
+          const form = this.finance.partnerPaymentForm || {};
+          const amount = Number(form.amount || 0);
+
+          if (!context || !form.landlordId || amount <= 0 || !form.paidAt || !form.periodStart || !form.periodEnd) {
+            this.finance.error = 'Choose a landlord, amount, paid date, and period before recording the payment.';
+            return;
+          }
+
+          this.finance.partnerPaymentSaving = true;
+          const { error } = await supabaseClient
+            .from('partner_payments')
+            .insert({
+              partner_type: context.partnerType,
+              partner_staff_id: context.partnerStaffId,
+              management_company_id: context.managementCompanyId,
+              landlord_id: form.landlordId,
+              amount_paid: amount,
+              paid_at: form.paidAt,
+              period_start: form.periodStart,
+              period_end: form.periodEnd,
+              notes: form.notes || null,
+              recorded_by: this.profile.id
+            });
+
+          this.finance.partnerPaymentSaving = false;
+          if (error) {
+            this.finance.error = this.friendlyDatabaseError(error, 'Payment could not be recorded.');
+            return;
+          }
+
+          this.resetPartnerPaymentForm();
+          await this.loadFinanceData();
         },
 
         financePropertyOptions() {
@@ -12589,7 +12856,7 @@
             if (filters.startDate && String(payment.date || '').slice(0, 10) < filters.startDate) return false;
             if (filters.endDate && String(payment.date || '').slice(0, 10) > filters.endDate) return false;
             if (search) {
-              const haystack = [payment.tenant, payment.unit, payment.property, payment.period, payment.receipt, payment.notes, payment.method].join(' ').toLowerCase();
+              const haystack = [payment.tenant, payment.landlordName, payment.unit, payment.property, payment.period, payment.receipt, payment.notes, payment.method, payment.purposeDescription].join(' ').toLowerCase();
               if (!haystack.includes(search)) return false;
             }
             return true;
@@ -12643,21 +12910,18 @@
         downloadFinanceCsv() {
           const rows = this.filteredFinancePayments();
           if (rows.length === 0) return;
-          const headers = ['Date', 'Property', 'Unit', 'Tenant', 'Period', 'Amount', 'Method', 'Receipt', 'Notes'];
+          const partnerMode = this.partnerFinanceMode();
+          const headers = partnerMode
+            ? ['Date', 'Landlord', 'Period', 'Amount', 'Notes']
+            : ['Date', 'Property', 'Unit', 'Tenant', 'Period', 'Amount', 'Method', 'Receipt', 'Notes'];
           const escapeCell = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
           const csv = [
             headers.map(escapeCell).join(','),
-            ...rows.map(row => [
-              row.date,
-              row.property,
-              row.unit,
-              row.tenant,
-              row.period,
-              row.amount,
-              row.method,
-              row.receipt,
-              row.notes
-            ].map(escapeCell).join(','))
+            ...rows.map(row => (
+              partnerMode
+                ? [row.date, row.landlordName || row.property, row.period, row.amount, row.notes]
+                : [row.date, row.property, row.unit, row.tenant, row.period, row.amount, row.method, row.receipt, row.notes]
+            ).map(escapeCell).join(','))
           ].join('\n');
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
           const url = URL.createObjectURL(blob);
@@ -17462,7 +17726,7 @@
           if (this.currentPage === 'properties') await this.loadPropertyUnitData();
             if (this.currentPage === 'leases') await this.loadTenantLeaseData();
             if (this.currentPage === 'payments') await this.loadPaymentsData();
-            if (this.currentPage === 'finance') await this.loadLandlordFinanceData();
+            if (this.currentPage === 'finance') await this.loadFinanceData();
             if (this.currentPage === 'maintenance') await this.loadMaintenanceData();
             if (this.currentPage === 'management-landlords') await this.loadManagementPageData();
             if (this.currentPage === 'staff') await this.loadStaffData();
@@ -17504,7 +17768,7 @@
           }
 
           if (page === 'finance' && this.currentShell === 'app') {
-            await this.loadLandlordFinanceData();
+            await this.loadFinanceData();
           }
 
           if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-notes' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
@@ -17556,6 +17820,10 @@
         },
 
         titleForPage(page) {
+          if (this.partnerFinanceMode()) {
+            if (page === 'payments') return 'Landlord Payments';
+            if (page === 'finance') return 'Personal Finance';
+          }
           const titles = {
             dashboard: 'Dashboard',
             properties: 'Properties',
