@@ -3956,6 +3956,83 @@
                     </article>
                   </section>
 
+                  <section x-show="canManageOwnerStatements() || finance.reconciliations.length > 0" class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <h2 class="text-lg font-bold text-slate-900">Owner Statements</h2>
+                        <p class="mt-1 text-sm text-slate-500">Prepare owner distributions for landlord review. These records do not change rent revenue.</p>
+                      </div>
+                    </div>
+
+                    <form x-show="canManageOwnerStatements()" class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4" @submit.prevent="saveOwnerStatement">
+                      <label class="block md:col-span-2 xl:col-span-1">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Landlord</span>
+                        <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="finance.reconciliationForm.landlordId" required x-effect='$nextTick(() => { $el.value = finance.reconciliationForm.landlordId ?? "" })'>
+                          <option value="">Select landlord</option>
+                          <template x-for="landlord in ownerStatementLandlordOptions()" :key="landlord.id">
+                            <option :value="landlord.id" x-text="landlord.label"></option>
+                          </template>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">From</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="date" x-model="finance.reconciliationForm.periodStart" required>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">To</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="date" x-model="finance.reconciliationForm.periodEnd" required>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Gross collected</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="finance.reconciliationForm.grossCollected" required>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Management fee</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="finance.reconciliationForm.managementFee">
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Expenses</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="finance.reconciliationForm.expenses">
+                      </label>
+                      <label class="block md:col-span-2">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Notes</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="finance.reconciliationForm.notes" placeholder="Optional statement notes">
+                      </label>
+                      <div class="flex items-end">
+                        <button class="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="submit" :disabled="finance.reconciliationSaving">Send Statement</button>
+                      </div>
+                    </form>
+
+                    <div class="mt-5 overflow-x-auto">
+                      <table class="min-w-full divide-y divide-slate-200 text-left text-[13px]">
+                        <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr><th class="px-4 py-3 font-semibold">Landlord</th><th class="px-4 py-3 font-semibold">Period</th><th class="px-4 py-3 font-semibold">Gross</th><th class="px-4 py-3 font-semibold">Fees</th><th class="px-4 py-3 font-semibold">Expenses</th><th class="px-4 py-3 font-semibold">Owner payout</th><th class="px-4 py-3 font-semibold">Status</th><th class="px-4 py-3 font-semibold">Actions</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                          <template x-if="!finance.loading && finance.reconciliations.length === 0"><tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="8">No owner statements yet.</td></tr></template>
+                          <template x-for="statement in finance.reconciliations" :key="statement.id">
+                            <tr class="odd:bg-white even:bg-slate-50/60">
+                              <td class="px-4 py-3"><p class="font-semibold text-slate-900" x-text="statement.landlordName"></p><p class="mt-1 text-xs text-slate-500" x-text="statement.partnerName"></p></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="`${formatDate(statement.period_start)} - ${formatDate(statement.period_end)}`"></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="formatCurrency(statement.gross_collected)"></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="formatCurrency(statement.management_fee)"></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="formatCurrency(statement.expenses)"></td>
+                              <td class="px-4 py-3 font-semibold text-emerald-700" x-text="formatCurrency(statement.owner_distribution)"></td>
+                              <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="ownerStatementBadgeClass(statement.status)" x-text="titleCase(statement.status)"></span></td>
+                              <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-2">
+                                  <button x-show="canReviewOwnerStatement(statement)" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600" type="button" @click="updateOwnerStatementStatus(statement, 'approved')">Approve</button>
+                                  <button x-show="canReviewOwnerStatement(statement)" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="updateOwnerStatementStatus(statement, 'rejected')">Reject</button>
+                                  <button x-show="canMarkOwnerStatementPaid(statement)" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="updateOwnerStatementStatus(statement, 'paid')">Mark Paid</button>
+                                </div>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
                   <section class="grid gap-6 xl:grid-cols-2">
                     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft xl:col-span-2">
                       <div class="border-b border-slate-200 px-4 py-3">
@@ -4098,6 +4175,7 @@
                               <td class="max-w-sm px-4 py-3">
                                 <p class="font-semibold text-slate-900" x-text="request.description"></p>
                                 <p class="mt-1 text-xs text-slate-500" x-text="request.resolution_notes ? `Resolution: ${request.resolution_notes}` : 'No resolution notes yet.'"></p>
+                                <p x-show="latestMaintenanceQuote(request)" class="mt-1 text-xs text-slate-500" x-text="`Latest quote: ${formatCurrency(latestMaintenanceQuote(request)?.amount || 0)} - ${titleCase(latestMaintenanceQuote(request)?.status || '')}`"></p>
                               </td>
                               <td class="px-4 py-3 text-slate-700" x-text="maintenanceUnitLabel(request)"></td>
                               <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="priorityBadgeClass(request.priority)" x-text="titleCase(request.priority)"></span></td>
@@ -4107,8 +4185,51 @@
                               <td class="px-4 py-3">
                                 <div class="flex flex-wrap gap-2">
                                   <button x-show="maintenancePhotoPath(request)" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openMaintenancePhoto(request)">Photo</button>
+                                  <button x-show="canCreateMaintenanceQuote(request)" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openMaintenanceQuoteModal(request)">Quote</button>
                                   <button x-show="canUpdateMaintenance()" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openMaintenanceEditModal(request)">Update</button>
                                   <button x-show="canDeleteMaintenance()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60" type="button" @click="deleteMaintenanceRequest(request)" :disabled="maintenance.saving">Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <section x-show="maintenance.quotes.length > 0" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
+                    <div class="border-b border-slate-200 px-4 py-3">
+                      <h2 class="text-sm font-semibold text-slate-900">Vendor Quotes</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                      <table class="min-w-full divide-y divide-slate-200 text-left text-[13px]">
+                        <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr>
+                            <th class="px-4 py-3 font-semibold">Request</th>
+                            <th class="px-4 py-3 font-semibold">Vendor</th>
+                            <th class="px-4 py-3 font-semibold">Amount</th>
+                            <th class="px-4 py-3 font-semibold">Status</th>
+                            <th class="px-4 py-3 font-semibold">Submitted</th>
+                            <th class="px-4 py-3 font-semibold">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                          <template x-for="quote in maintenance.quotes" :key="quote.id">
+                            <tr class="odd:bg-white even:bg-slate-50/60">
+                              <td class="px-4 py-3 text-slate-700" x-text="maintenanceQuoteRequestLabel(quote)"></td>
+                              <td class="px-4 py-3">
+                                <p class="font-semibold text-slate-900" x-text="quote.vendor_name"></p>
+                                <p class="mt-1 text-xs text-slate-500" x-text="[quote.vendor_phone, quote.vendor_email].filter(Boolean).join(' / ') || '-'"></p>
+                                <p x-show="quote.notes" class="mt-1 max-w-sm text-xs text-slate-500" x-text="quote.notes"></p>
+                              </td>
+                              <td class="px-4 py-3 font-semibold text-slate-900" x-text="formatCurrency(quote.amount)"></td>
+                              <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="maintenanceQuoteBadgeClass(quote.status)" x-text="titleCase(quote.status)"></span></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="formatDate(quote.submitted_at || quote.created_at)"></td>
+                              <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-2">
+                                  <button x-show="canReviewMaintenanceQuote(quote)" class="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600" type="button" @click="updateMaintenanceQuoteStatus(quote, 'approved')">Approve</button>
+                                  <button x-show="canReviewMaintenanceQuote(quote)" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="updateMaintenanceQuoteStatus(quote, 'rejected')">Reject</button>
+                                  <span x-show="!canReviewMaintenanceQuote(quote)" class="text-xs text-slate-500">-</span>
                                 </div>
                               </td>
                             </tr>
@@ -4209,6 +4330,53 @@
                         <div class="flex justify-end gap-3 sm:col-span-2">
                           <button class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-50" type="button" @click="closeMaintenanceModal">Cancel</button>
                           <button class="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="submit" :disabled="maintenance.saving">Save Update</button>
+                        </div>
+                      </form>
+                    </section>
+                  </div>
+
+                  <div x-show="maintenance.modal === 'quote'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6">
+                    <section class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
+                      <div class="mb-5 flex items-start justify-between gap-4">
+                        <div>
+                          <h2 class="text-lg font-bold text-slate-900">Add Vendor Quote</h2>
+                          <p class="mt-1 text-sm text-slate-500" x-text="maintenance.selectedRequest ? maintenanceUnitLabel(maintenance.selectedRequest) : ''"></p>
+                        </div>
+                        <button class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" type="button" @click="closeMaintenanceModal" aria-label="Close modal">
+                          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+                        </button>
+                      </div>
+                      <form class="grid gap-4 sm:grid-cols-2" @submit.prevent="saveMaintenanceQuote">
+                        <label class="block sm:col-span-2">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Vendor name</span>
+                          <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="maintenance.quoteForm.vendorName" required>
+                        </label>
+                        <label class="block">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Vendor phone</span>
+                          <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="tel" x-model.trim="maintenance.quoteForm.vendorPhone">
+                        </label>
+                        <label class="block">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Vendor email</span>
+                          <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="email" x-model.trim="maintenance.quoteForm.vendorEmail">
+                        </label>
+                        <label class="block">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Amount</span>
+                          <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="maintenance.quoteForm.amount" required>
+                        </label>
+                        <label class="block">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Currency</span>
+                          <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="maintenance.quoteForm.currencyCode" required x-effect='$nextTick(() => { $el.value = maintenance.quoteForm.currencyCode ?? "USD" })'>
+                            <option value="USD">USD</option>
+                            <option value="MYR">MYR</option>
+                          </select>
+                        </label>
+                        <label class="block sm:col-span-2">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Notes</span>
+                          <textarea class="min-h-28 w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="maintenance.quoteForm.notes" placeholder="Scope, quote reference, or terms"></textarea>
+                        </label>
+                        <div class="flex justify-end gap-3 sm:col-span-2">
+                          <button class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-50" type="button" @click="closeMaintenanceModal">Cancel</button>
+                          <button class="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="submit" :disabled="maintenance.saving">Send Quote</button>
                         </div>
                       </form>
                     </section>
@@ -5695,6 +5863,17 @@
           error: '',
           payments: [],
           byProperty: [],
+          reconciliations: [],
+          reconciliationSaving: false,
+          reconciliationForm: {
+            landlordId: '',
+            periodStart: '',
+            periodEnd: '',
+            grossCollected: '',
+            managementFee: '',
+            expenses: '',
+            notes: ''
+          },
           filters: {
             property: '',
             startDate: '',
@@ -5740,6 +5919,7 @@
           modal: '',
           selectedRequest: null,
           requests: [],
+          quotes: [],
           units: [],
           leases: [],
           properties: [],
@@ -5762,6 +5942,15 @@
             status: 'open',
             assignedTo: '',
             resolutionNotes: ''
+          },
+          quoteForm: {
+            maintenanceRequestId: '',
+            vendorName: '',
+            vendorPhone: '',
+            vendorEmail: '',
+            amount: '',
+            currencyCode: 'USD',
+            notes: ''
           }
         },
         staff: {
@@ -12130,18 +12319,26 @@
           this.beginDataLoad('finance', this.finance);
           this.finance.error = '';
 
-          const { data, error } = await supabaseClient
-            .from('payments')
-            .select('id, amount_paid, payment_date, payment_method, rent_period_start, rent_period_end, rent_period_label, payment_purpose, purpose_description, is_historical, notes, receipt_number, created_at, leases(id, tenants(id, full_name, email), units(id, unit_number, properties(id, name, address, city)))')
-            .order('payment_date', { ascending: false });
+          const [paymentsResult, statementsResult] = await Promise.all([
+            supabaseClient
+              .from('payments')
+              .select('id, amount_paid, payment_date, payment_method, rent_period_start, rent_period_end, rent_period_label, payment_purpose, purpose_description, is_historical, notes, receipt_number, created_at, leases(id, tenants(id, full_name, email), units(id, unit_number, properties(id, name, address, city)))')
+              .order('payment_date', { ascending: false }),
+            supabaseClient
+              .from('partner_reconciliations')
+              .select('id, partner_type, partner_staff_id, management_company_id, landlord_id, period_start, period_end, gross_collected, management_fee, expenses, owner_distribution, status, notes, submitted_by, reviewed_by, submitted_at, approved_at, rejected_at, paid_at, created_at')
+              .order('period_end', { ascending: false })
+          ]);
 
-          if (error) {
-            this.finance.error = error.message;
+          const statementTableMissing = statementsResult.error?.code === '42P01';
+          const firstError = paymentsResult.error || (statementTableMissing ? null : statementsResult.error);
+          if (firstError) {
+            this.finance.error = this.friendlyDatabaseError(firstError, 'Finance data could not be loaded.');
             this.finishDataLoad('finance', this.finance);
             return;
           }
 
-          const payments = (data || []).map(payment => {
+          const payments = (paymentsResult.data || []).map(payment => {
             const lease = payment.leases || {};
             const unit = lease.units || {};
             const property = unit.properties || {};
@@ -12163,6 +12360,33 @@
             };
           });
 
+          const statements = statementTableMissing ? [] : (statementsResult.data || []);
+          const profileIds = [...new Set(statements.flatMap(statement => [
+            statement.landlord_id,
+            statement.partner_staff_id,
+            statement.submitted_by,
+            statement.reviewed_by
+          ]).filter(Boolean))];
+          const companyIds = [...new Set(statements.map(statement => statement.management_company_id).filter(Boolean))];
+          let profileMap = new Map();
+          let companyMap = new Map();
+
+          if (profileIds.length > 0) {
+            const { data: profiles } = await supabaseClient
+              .from('profiles')
+              .select('id, full_name, email')
+              .in('id', profileIds);
+            profileMap = new Map((profiles || []).map(row => [row.id, row.full_name || row.email || 'User']));
+          }
+
+          if (companyIds.length > 0) {
+            const { data: companies } = await supabaseClient
+              .from('management_companies')
+              .select('id, company_name, leader_name')
+              .in('id', companyIds);
+            companyMap = new Map((companies || []).map(row => [row.id, row.company_name || row.leader_name || 'PMC']));
+          }
+
           const now = new Date();
           const monthKey = now.toISOString().slice(0, 7);
           const yearKey = String(now.getFullYear());
@@ -12177,6 +12401,13 @@
           });
 
           this.finance.payments = payments;
+          this.finance.reconciliations = statements.map(statement => ({
+            ...statement,
+            landlordName: profileMap.get(statement.landlord_id) || 'Landlord',
+            partnerName: statement.partner_type === 'pmc'
+              ? (companyMap.get(statement.management_company_id) || 'PMC')
+              : (profileMap.get(statement.partner_staff_id) || profileMap.get(statement.submitted_by) || 'IPM')
+          }));
           this.finance.byProperty = Array.from(byPropertyMap.values()).sort((a, b) => b.total - a.total);
           this.finance.stats = {
             totalRevenue,
@@ -12185,6 +12416,165 @@
             averagePayment: revenuePayments.length ? totalRevenue / revenuePayments.length : 0
           };
           this.finishDataLoad('finance', this.finance);
+        },
+
+        canManageOwnerStatements() {
+          if (!this.canViewFinancials()) return false;
+          if (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') return true;
+          return ['management_leader', 'management_staff'].includes(this.profile?.role);
+        },
+
+        ownerStatementPartnerContext() {
+          if (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') {
+            return {
+              partnerType: 'ipm',
+              partnerStaffId: this.profile.id,
+              managementCompanyId: null
+            };
+          }
+          if (['management_leader', 'management_staff'].includes(this.profile?.role)) {
+            return {
+              partnerType: 'pmc',
+              partnerStaffId: null,
+              managementCompanyId: this.managementContext.company?.id || this.profile?.management_company_id || null
+            };
+          }
+          return null;
+        },
+
+        ownerStatementLandlordOptions() {
+          const relationships = this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer'
+            ? (this.staffContext.relationships || [])
+            : (this.managementContext.relationships || []);
+          const unique = new Map();
+          relationships
+            .filter(row => ['approved', 'active'].includes(String(row.status || row.request_status || 'approved').toLowerCase()))
+            .forEach(row => {
+              const landlord = row.landlord || row.landlord_profile || row.profiles || {};
+              const id = row.landlord_id || landlord.id;
+              if (!id || unique.has(id)) return;
+              unique.set(id, {
+                id,
+                label: landlord.full_name || row.landlord_name || landlord.email || row.landlord_email || 'Landlord'
+              });
+            });
+          return Array.from(unique.values()).sort((left, right) => String(left.label || '').localeCompare(String(right.label || '')));
+        },
+
+        resetOwnerStatementForm() {
+          this.finance.reconciliationForm = {
+            landlordId: '',
+            periodStart: '',
+            periodEnd: '',
+            grossCollected: '',
+            managementFee: '',
+            expenses: '',
+            notes: ''
+          };
+        },
+
+        ownerStatementBadgeClass(status) {
+          const classes = {
+            draft: 'bg-slate-100 text-slate-600',
+            sent_for_approval: 'bg-yellow-100 text-amber-700',
+            approved: 'bg-emerald-100 text-emerald-700',
+            rejected: 'bg-red-100 text-red-700',
+            paid: 'bg-blue-100 text-blue-700'
+          };
+          return classes[status] || classes.sent_for_approval;
+        },
+
+        canReviewOwnerStatement(statement) {
+          return this.profile?.role === 'landlord'
+            && statement?.landlord_id === this.profile?.id
+            && statement?.status === 'sent_for_approval';
+        },
+
+        canMarkOwnerStatementPaid(statement) {
+          return this.profile?.role === 'landlord'
+            && statement?.landlord_id === this.profile?.id
+            && statement?.status === 'approved';
+        },
+
+        async saveOwnerStatement() {
+          this.finance.error = '';
+          if (!this.canManageOwnerStatements()) {
+            this.finance.error = 'You do not have permission to create owner statements.';
+            return;
+          }
+
+          const form = this.finance.reconciliationForm;
+          const context = this.ownerStatementPartnerContext();
+          const grossCollected = Number(form.grossCollected || 0);
+          const managementFee = Number(form.managementFee || 0);
+          const expenses = Number(form.expenses || 0);
+
+          if (!context || !form.landlordId || !form.periodStart || !form.periodEnd || grossCollected <= 0) {
+            this.finance.error = 'Choose a landlord, period, and gross collected amount before sending the statement.';
+            return;
+          }
+
+          this.finance.reconciliationSaving = true;
+          const { error } = await supabaseClient
+            .from('partner_reconciliations')
+            .insert({
+              partner_type: context.partnerType,
+              partner_staff_id: context.partnerStaffId,
+              management_company_id: context.managementCompanyId,
+              landlord_id: form.landlordId,
+              period_start: form.periodStart,
+              period_end: form.periodEnd,
+              gross_collected: grossCollected,
+              management_fee: managementFee,
+              expenses,
+              owner_distribution: Math.max(0, grossCollected - managementFee - expenses),
+              status: 'sent_for_approval',
+              notes: form.notes || null,
+              submitted_by: this.profile.id
+            });
+
+          this.finance.reconciliationSaving = false;
+          if (error) {
+            this.finance.error = this.friendlyDatabaseError(error, 'Owner statement could not be sent.');
+            return;
+          }
+
+          this.resetOwnerStatementForm();
+          await this.loadLandlordFinanceData();
+        },
+
+        async updateOwnerStatementStatus(statement, status) {
+          if (!statement?.id) return;
+          if (!['approved', 'rejected', 'paid'].includes(status)) return;
+          if (['approved', 'rejected'].includes(status) && !this.canReviewOwnerStatement(statement)) return;
+          if (status === 'paid' && !this.canMarkOwnerStatementPaid(statement)) return;
+
+          this.finance.error = '';
+          const updates = {
+            status,
+            reviewed_by: this.profile.id
+          };
+          if (status === 'approved') {
+            updates.approved_at = new Date().toISOString();
+            updates.rejected_at = null;
+          }
+          if (status === 'rejected') {
+            updates.rejected_at = new Date().toISOString();
+            updates.approved_at = null;
+          }
+          if (status === 'paid') updates.paid_at = new Date().toISOString();
+
+          const { error } = await supabaseClient
+            .from('partner_reconciliations')
+            .update(updates)
+            .eq('id', statement.id);
+
+          if (error) {
+            this.finance.error = this.friendlyDatabaseError(error, 'Owner statement status could not be updated.');
+            return;
+          }
+
+          await this.loadLandlordFinanceData();
         },
 
         financePropertyOptions() {
@@ -12986,7 +13376,7 @@
           this.beginDataLoad('maintenance', this.maintenance);
           this.maintenance.error = '';
 
-          const [requestsResult, propertiesResult, unitsResult, leasesResult, staffResult, assignableUnitsResult] = await Promise.all([
+          const [requestsResult, propertiesResult, unitsResult, leasesResult, staffResult, assignableUnitsResult, quotesResult] = await Promise.all([
             supabaseClient
               .from('maintenance_requests')
               .select('id, unit_id, lease_id, landlord_id, submitted_by_profile_id, assigned_to_staff_id, description, photo_url, photo_path, photo_name, photo_size, photo_uploaded_by, photo_uploaded_at, status, priority, resolution_notes, created_at, resolved_at')
@@ -13011,12 +13401,17 @@
               : Promise.resolve({ data: [], error: null }),
             this.canAssignMaintenance()
               ? supabaseClient.rpc('maintenance_assignable_units')
-              : Promise.resolve({ data: [], error: null })
+              : Promise.resolve({ data: [], error: null }),
+            supabaseClient
+              .from('maintenance_quotes')
+              .select('id, maintenance_request_id, landlord_id, unit_id, vendor_name, vendor_phone, vendor_email, amount, currency_code, notes, status, requested_by, reviewed_by, submitted_at, approved_at, rejected_at, created_at')
+              .order('submitted_at', { ascending: false })
           ]);
 
-          const firstError = requestsResult.error || propertiesResult.error || unitsResult.error || leasesResult.error || staffResult.error || assignableUnitsResult.error;
+          const quoteError = quotesResult.error?.code === '42P01' ? null : quotesResult.error;
+          const firstError = requestsResult.error || propertiesResult.error || unitsResult.error || leasesResult.error || staffResult.error || assignableUnitsResult.error || quoteError;
           if (firstError) {
-            this.maintenance.error = firstError.message;
+            this.maintenance.error = this.friendlyDatabaseError(firstError, 'Maintenance data could not be loaded.');
             this.finishDataLoad('maintenance', this.maintenance);
             return;
           }
@@ -13027,6 +13422,7 @@
           this.maintenance.staff = staffResult.data || [];
           this.maintenance.assignableUnitIds = (assignableUnitsResult.data || []).map(row => row.unit_id);
           this.maintenance.requests = requestsResult.data || [];
+          this.maintenance.quotes = quotesResult.error?.code === '42P01' ? [] : (quotesResult.data || []);
           this.finishDataLoad('maintenance', this.maintenance);
         },
 
@@ -13091,6 +13487,62 @@
           return this.maintenance.leases.find(lease => lease.unit_id === unitId && lease.status === 'active') || null;
         },
 
+        maintenanceQuotesForRequest(requestId) {
+          return (this.maintenance.quotes || [])
+            .filter(quote => quote.maintenance_request_id === requestId)
+            .sort((left, right) => String(right.submitted_at || right.created_at || '').localeCompare(String(left.submitted_at || left.created_at || '')));
+        },
+
+        latestMaintenanceQuote(request) {
+          return this.maintenanceQuotesForRequest(request?.id)[0] || null;
+        },
+
+        maintenanceQuoteRequestLabel(quote) {
+          const request = this.maintenance.requests.find(item => item.id === quote?.maintenance_request_id);
+          return request ? this.maintenanceUnitLabel(request) : 'Maintenance request';
+        },
+
+        maintenanceQuoteBadgeClass(status) {
+          const classes = {
+            sent_for_approval: 'bg-yellow-100 text-amber-700',
+            approved: 'bg-emerald-100 text-emerald-700',
+            rejected: 'bg-red-100 text-red-700',
+            cancelled: 'bg-slate-100 text-slate-600'
+          };
+          return classes[status] || classes.sent_for_approval;
+        },
+
+        canCreateMaintenanceQuote(request) {
+          if (!request || this.profile?.role === 'tenant') return false;
+          if (this.profile?.role === 'landlord') return request.landlord_id === this.profile.id;
+          return this.canCreateMaintenance() || this.canUpdateMaintenance();
+        },
+
+        canReviewMaintenanceQuote(quote) {
+          return this.profile?.role === 'landlord'
+            && quote?.landlord_id === this.profile.id
+            && quote?.status === 'sent_for_approval';
+        },
+
+        openMaintenanceQuoteModal(request) {
+          this.maintenance.error = '';
+          if (!this.canCreateMaintenanceQuote(request)) {
+            this.maintenance.error = 'You do not have permission to send quotes for this maintenance request.';
+            return;
+          }
+          this.maintenance.selectedRequest = request;
+          this.maintenance.quoteForm = {
+            maintenanceRequestId: request.id,
+            vendorName: '',
+            vendorPhone: '',
+            vendorEmail: '',
+            amount: '',
+            currencyCode: 'USD',
+            notes: ''
+          };
+          this.maintenance.modal = 'quote';
+        },
+
         openMaintenanceLogModal() {
           this.maintenance.error = '';
           if (!this.canCreateMaintenance()) {
@@ -13127,6 +13579,15 @@
           this.maintenance.modal = '';
           this.maintenance.selectedRequest = null;
           this.maintenance.saving = false;
+          this.maintenance.quoteForm = {
+            maintenanceRequestId: '',
+            vendorName: '',
+            vendorPhone: '',
+            vendorEmail: '',
+            amount: '',
+            currencyCode: 'USD',
+            notes: ''
+          };
         },
 
         async logMaintenanceRequest() {
@@ -13243,6 +13704,85 @@
           await this.loadMaintenanceData();
           if (this.propertyUnit.selectedUnit) await this.loadUnitDetail(this.propertyUnit.selectedUnit);
           await this.loadUnreadCount(this.profile.id);
+        },
+
+        async saveMaintenanceQuote() {
+          const request = this.maintenance.selectedRequest;
+          const form = this.maintenance.quoteForm;
+          this.maintenance.error = '';
+
+          if (!request || !this.canCreateMaintenanceQuote(request)) {
+            this.maintenance.error = 'You do not have permission to send quotes for this maintenance request.';
+            return;
+          }
+
+          const amount = Number(form.amount || 0);
+          if (!form.vendorName || amount <= 0) {
+            this.maintenance.error = 'Enter the vendor name and quote amount.';
+            return;
+          }
+
+          this.maintenance.saving = true;
+          const { error } = await supabaseClient
+            .from('maintenance_quotes')
+            .insert({
+              maintenance_request_id: request.id,
+              landlord_id: request.landlord_id || this.currentLandlordId(),
+              unit_id: request.unit_id,
+              vendor_name: form.vendorName,
+              vendor_phone: form.vendorPhone || null,
+              vendor_email: form.vendorEmail || null,
+              amount,
+              currency_code: form.currencyCode || 'USD',
+              notes: form.notes || null,
+              status: 'sent_for_approval',
+              requested_by: this.profile.id
+            });
+
+          if (error) {
+            this.maintenance.error = this.friendlyDatabaseError(error, 'Maintenance quote could not be saved.');
+            this.maintenance.saving = false;
+            return;
+          }
+
+          this.closeMaintenanceModal();
+          await this.loadMaintenanceData();
+          if (this.propertyUnit.selectedUnit) await this.loadUnitDetail(this.propertyUnit.selectedUnit);
+        },
+
+        async updateMaintenanceQuoteStatus(quote, status) {
+          if (!quote?.id || !['approved', 'rejected'].includes(status)) return;
+          if (!this.canReviewMaintenanceQuote(quote)) {
+            this.maintenance.error = 'Only the landlord can approve or reject this quote.';
+            return;
+          }
+
+          this.maintenance.error = '';
+          const updates = {
+            status,
+            reviewed_by: this.profile.id
+          };
+          if (status === 'approved') {
+            updates.approved_at = new Date().toISOString();
+            updates.rejected_at = null;
+          }
+          if (status === 'rejected') {
+            updates.rejected_at = new Date().toISOString();
+            updates.approved_at = null;
+          }
+
+          const { error } = await supabaseClient
+            .from('maintenance_quotes')
+            .update(updates)
+            .eq('id', quote.id);
+
+          if (error) {
+            this.maintenance.error = this.friendlyDatabaseError(error, 'Maintenance quote status could not be updated.');
+            return;
+          }
+
+          await this.loadMaintenanceData();
+          if (this.propertyUnit.selectedUnit) await this.loadUnitDetail(this.propertyUnit.selectedUnit);
         },
 
         async deleteMaintenanceRequest(request) {
@@ -15795,7 +16335,9 @@
             'payment_submissions',
             'platform_payments',
             'partner_payments',
+            'partner_reconciliations',
             'maintenance_requests',
+            'maintenance_quotes',
             'notifications',
             'staff_permissions',
             'staff_landlord_requests',
@@ -15830,7 +16372,7 @@
             const adminMap = {
               'admin-dashboard': ['*'],
               'landlord-management': sharedAdminTables,
-              'admin-finance': ['platform_payments', 'partner_payments', 'profiles', 'countries', 'pricing_plans'],
+              'admin-finance': ['platform_payments', 'partner_payments', 'partner_reconciliations', 'profiles', 'countries', 'pricing_plans'],
               'admin-pricing': ['pricing_plans', 'countries'],
               'admin-tenants': ['tenants', 'profiles', 'countries'],
               'admin-enquiries': ['enquiries', 'countries', 'admin_staff_country_assignments'],
@@ -15844,9 +16386,9 @@
 
           if (shell === 'tenant') {
             const tenantMap = {
-              'tenant-home': ['tenants', 'leases', 'units', 'properties', 'payments', 'maintenance_requests', 'notifications'],
+              'tenant-home': ['tenants', 'leases', 'units', 'properties', 'payments', 'maintenance_requests', 'maintenance_quotes', 'notifications'],
               'tenant-payments': ['tenants', 'leases', 'payments', 'payment_submissions'],
-              'tenant-maintenance': ['tenants', 'maintenance_requests'],
+              'tenant-maintenance': ['tenants', 'maintenance_requests', 'maintenance_quotes'],
               'tenant-notifications': ['notifications'],
               'tenant-settings': ['tenants', 'profiles', 'notifications']
             };
@@ -15854,12 +16396,12 @@
           }
 
           const appMap = {
-            dashboard: ['properties', 'units', 'leases', 'payments', 'payment_submissions', 'maintenance_requests'],
+            dashboard: ['properties', 'units', 'leases', 'payments', 'payment_submissions', 'maintenance_requests', 'maintenance_quotes'],
             properties: ['properties', 'units', 'tenants', 'leases', 'maintenance_requests', 'staff_permissions', 'management_landlord_permissions', 'notifications'],
             leases: ['leases', 'tenants', 'units', 'properties', 'notifications'],
             payments: ['payments', 'payment_submissions', 'leases', 'tenants', 'units', 'properties'],
-            finance: ['payments', 'leases', 'tenants', 'units', 'properties', 'partner_payments'],
-            maintenance: ['maintenance_requests', 'properties', 'units', 'staff_permissions', 'management_staff_permissions'],
+            finance: ['payments', 'leases', 'tenants', 'units', 'properties', 'partner_payments', 'partner_reconciliations'],
+            maintenance: ['maintenance_requests', 'maintenance_quotes', 'properties', 'units', 'staff_permissions', 'management_staff_permissions'],
             staff: ['staff_permissions', 'staff_landlord_requests', 'management_landlord_permissions', 'management_landlord_requests', 'invite_tokens', 'profiles'],
             'management-landlords': ['staff_landlord_requests', 'staff_permissions', 'management_landlord_requests', 'management_landlord_permissions', 'profiles', 'properties', 'tenants'],
             notifications: ['notifications', 'staff_landlord_requests', 'management_landlord_requests'],
