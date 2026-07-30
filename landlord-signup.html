@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create Free Landlord Account | Mushavo</title>
+  <meta name="description" content="Create a free Mushavo landlord account.">
+  <link rel="icon" type="image/png" href="mushavo-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+          boxShadow: { soft: '0 18px 70px rgba(15,23,42,0.12)' }
+        }
+      }
+    };
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    html, body { overflow-x: hidden; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(16, 185, 129, 0.18), transparent 28rem),
+        radial-gradient(circle at 88% 0%, rgba(20, 184, 166, 0.14), transparent 26rem),
+        linear-gradient(135deg, #f8fafc 0%, #ecfdf5 42%, #f8fafc 100%);
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.45) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.35), transparent 70%);
+    }
+    .brand-logo { object-fit: contain; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900 antialiased">
+  <main x-data="landlordSignupPage()" x-init="init()" x-cloak class="relative flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+    <section class="w-full max-w-2xl rounded-3xl border border-white/70 bg-white/70 p-6 shadow-soft backdrop-blur-2xl sm:p-8">
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <img class="brand-logo mb-5 h-36 w-auto sm:h-44" src="mushavo-logo.png" alt="Mushavo logo">
+          <p class="text-xs font-bold uppercase tracking-[0.28em] text-emerald-700">Free Landlord Account</p>
+          <h1 class="mt-3 text-3xl font-extrabold tracking-normal text-slate-950 sm:text-4xl">Create your landlord account.</h1>
+          <p class="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Start on the free plan with 1 property, 1 unit, Finance page access, 0 personal staff, and 1 IPM or PMC connection.</p>
+        </div>
+        <a class="inline-flex shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-white" href="client.html">Sign in</a>
+      </div>
+
+      <template x-if="successMessage">
+        <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm font-semibold text-emerald-800" x-text="successMessage"></div>
+      </template>
+
+      <template x-if="authError">
+        <div class="mt-6 rounded-xl border border-red-200 bg-red-50/90 px-4 py-3 text-sm font-semibold text-red-700" x-text="authError"></div>
+      </template>
+
+      <form class="mt-8 grid gap-4 sm:grid-cols-2" @submit.prevent="signUp">
+        <label class="block sm:col-span-2">
+          <span class="mb-2 block text-sm font-semibold text-slate-700">Full name</span>
+          <input class="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15" type="text" autocomplete="name" x-model.trim="form.fullName" required>
+        </label>
+
+        <label class="block">
+          <span class="mb-2 block text-sm font-semibold text-slate-700">Country</span>
+          <select class="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15" x-model="form.countryId" required>
+            <option value="">Select country</option>
+            <template x-for="country in publicCountries" :key="country.id">
+              <option :value="country.id" x-text="country.name"></option>
+            </template>
+          </select>
+        </label>
+
+        <label class="block">
+          <span class="mb-2 block text-sm font-semibold text-slate-700">Phone</span>
+          <input class="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15" type="tel" autocomplete="tel" x-model.trim="form.phone" required>
+        </label>
+
+        <label class="block sm:col-span-2">
+          <span class="mb-2 block text-sm font-semibold text-slate-700">Email</span>
+          <input class="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15" type="email" autocomplete="email" x-model.trim="form.email" required>
+        </label>
+
+        <label class="block">
+          <span class="mb-2 block text-sm font-semibold text-slate-700">Password</span>
+          <input class="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15" type="password" minlength="8" autocomplete="new-password" x-model="form.password" required>
+        </label>
+
+        <label class="block">
+          <span class="mb-2 block text-sm font-semibold text-slate-700">Confirm password</span>
+          <input class="w-full rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15" type="password" minlength="8" autocomplete="new-password" x-model="form.confirmPassword" required>
+        </label>
+
+        <button class="mt-2 flex w-full items-center justify-center rounded-xl bg-emerald-500 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2" type="submit" :disabled="authLoading">
+          <span x-show="!authLoading">Create free landlord account</span>
+          <span x-show="authLoading">Creating account...</span>
+        </button>
+      </form>
+
+      <div class="mt-5 border-t border-slate-200 pt-5 text-center">
+        <a class="text-sm font-semibold text-emerald-700 hover:text-emerald-800" href="client.html">Back to sign in</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const SUPABASE_URL = 'https://rmbvgtaadkvbsasbvdmb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtYnZndGFhZGt2YnNhc2J2ZG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTQ1NjIsImV4cCI6MjA5ODIzMDU2Mn0.kMhXDI85TVAsw_Mb-PO5iaSHipG3vLFmM7DF3TUnf00';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function friendlyDatabaseError(error, fallback) {
+      const message = error?.message || '';
+      if (/row-level security|violates row-level security/i.test(message)) return 'This action is blocked by database permissions. Please contact Mushavo support.';
+      if (/duplicate|already exists|unique/i.test(message)) return 'Your account already exists. Please contact Mushavo support.';
+      if (/limit|quota/i.test(message)) return 'This account has reached its current plan limit. Please contact Mushavo support.';
+      return fallback;
+    }
+
+    function landlordSignupPage() {
+      return {
+        authLoading: false,
+        authError: '',
+        successMessage: '',
+        publicCountries: [],
+        form: {
+          fullName: '',
+          countryId: '',
+          phone: '',
+          email: '',
+          password: '',
+          confirmPassword: ''
+        },
+
+        async init() {
+          await supabaseClient.auth.signOut();
+          await this.loadPublicCountries();
+        },
+
+        async loadPublicCountries() {
+          const { data, error } = await supabaseClient
+            .from('countries')
+            .select('id, name, code, currency_code')
+            .is('archived_at', null)
+            .order('name', { ascending: true });
+
+          this.publicCountries = error ? [] : (data || []);
+        },
+
+        async checkIdentityAvailable() {
+          const normalizedEmail = String(this.form.email || '').trim().toLowerCase();
+          const normalizedPhone = String(this.form.phone || '').replace(/\D/g, '');
+
+          if (!normalizedEmail || normalizedPhone.length < 6) {
+            return { available: false, message: 'Enter a valid email and phone number before creating the account.' };
+          }
+
+          const { data, error } = await supabaseClient.rpc('signup_identity_exists', {
+            p_email: normalizedEmail,
+            p_phone: this.form.phone || ''
+          });
+
+          if (error) {
+            return { available: false, message: 'Mushavo could not safely check whether this account already exists. Please contact Mushavo support.' };
+          }
+
+          if (data === true) {
+            return { available: false, message: 'Your account already exists. Please contact Mushavo support.' };
+          }
+
+          return { available: true, message: '' };
+        },
+
+        async signUp() {
+          this.authError = '';
+          this.successMessage = '';
+
+          if (!this.form.fullName || !this.form.countryId || !this.form.phone || !this.form.email || !this.form.password || !this.form.confirmPassword) {
+            this.authError = 'All landlord signup details are required.';
+            return;
+          }
+
+          if (this.form.password !== this.form.confirmPassword) {
+            this.authError = 'Passwords do not match.';
+            return;
+          }
+
+          if (this.form.password.length < 8) {
+            this.authError = 'Password must be at least 8 characters.';
+            return;
+          }
+
+          this.authLoading = true;
+          const availability = await this.checkIdentityAvailable();
+          if (!availability.available) {
+            this.authError = availability.message;
+            this.authLoading = false;
+            return;
+          }
+
+          await supabaseClient.auth.signOut();
+
+          const { data, error } = await supabaseClient.auth.signUp({
+            email: this.form.email,
+            password: this.form.password,
+            options: {
+              data: {
+                mushavo_signup: 'landlord_free',
+                full_name: this.form.fullName,
+                phone: this.form.phone || '',
+                country_id: this.form.countryId
+              }
+            }
+          });
+
+          if (error) {
+            this.authError = /already registered|already exists|user exists/i.test(error.message || '')
+              ? 'Your account already exists. Please contact Mushavo support.'
+              : error.message;
+            this.authLoading = false;
+            return;
+          }
+
+          if (!data.session || !data.user) {
+            this.successMessage = 'Check your email to verify your landlord account, then sign in to finish setup.';
+            this.authLoading = false;
+            return;
+          }
+
+          const { error: registerError } = await supabaseClient.rpc('register_free_landlord', {
+            p_full_name: this.form.fullName,
+            p_phone: this.form.phone || '',
+            p_country_id: this.form.countryId
+          });
+
+          if (registerError) {
+            this.authError = friendlyDatabaseError(registerError, 'Your free landlord account could not be created. Please contact Mushavo support.');
+            this.authLoading = false;
+            return;
+          }
+
+          await supabaseClient.auth.signOut();
+          this.form = { fullName: '', countryId: '', phone: '', email: '', password: '', confirmPassword: '' };
+          this.successMessage = 'Free landlord account created. Sign in to start with your first property and unit.';
+          this.authLoading = false;
+        }
+      };
+    }
+  </script>
+</body>
+</html>

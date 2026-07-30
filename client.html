@@ -388,98 +388,10 @@
               <span x-show="authLoading">Signing in...</span>
             </button>
             <div class="space-y-2 border-t border-slate-100 pt-4 text-center">
-              <button class="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100" type="button" @click="authMode = 'landlord-signup'; authError = ''; successMessage = ''">Create free landlord account</button>
-              <button class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50" type="button" @click="authMode = 'tenant-signup'; authError = ''; successMessage = ''">Create tenant account</button>
+              <a class="block w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100" href="landlord-signup.html">Create free landlord account</a>
+              <a class="block w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50" href="tenant-signup.html">Create tenant account</a>
               <p class="text-xs leading-5 text-slate-500">Landlords and tenants can create accounts directly. IPM, PMC, and staff accounts are invite-only.</p>
             </div>
-          </form>
-
-          <form x-show="authMode === 'landlord-signup'" class="space-y-4" @submit.prevent="signUpLandlord">
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Full name</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" autocomplete="name" x-model.trim="landlordSignupForm.fullName" required>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Country</span>
-              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="landlordSignupForm.countryId" required x-effect='$nextTick(() => { $el.value = landlordSignupForm.countryId ?? "" })'>
-                <option value="">Select country</option>
-                <template x-for="country in publicCountries" :key="country.id">
-                  <option :value="country.id" x-text="country.name"></option>
-                </template>
-              </select>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Phone</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="tel" x-model.trim="landlordSignupForm.phone" required>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Email</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="email" autocomplete="email" x-model.trim="landlordSignupForm.email" required>
-            </label>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="block">
-                <span class="mb-2 block text-sm font-medium text-slate-700">Password</span>
-                <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="password" minlength="8" autocomplete="new-password" x-model="landlordSignupForm.password" required>
-              </label>
-              <label class="block">
-                <span class="mb-2 block text-sm font-medium text-slate-700">Confirm</span>
-                <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="password" minlength="8" autocomplete="new-password" x-model="landlordSignupForm.confirmPassword" required>
-              </label>
-            </div>
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
-              Free plan includes 1 property, 1 unit, Finance page access, 0 personal staff, and 1 IPM or PMC connection.
-            </div>
-            <button class="flex w-full items-center justify-center rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60" type="submit" :disabled="authLoading">
-              <span x-show="!authLoading">Sign up for free</span>
-              <span x-show="authLoading">Creating...</span>
-            </button>
-            <button class="w-full text-center text-sm font-semibold text-slate-700 hover:underline" type="button" @click="authMode = 'login'; authError = ''; successMessage = ''">Back to sign in</button>
-          </form>
-
-          <form x-show="authMode === 'tenant-signup'" class="space-y-4" @submit.prevent="signUpTenant">
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Full name</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" autocomplete="name" x-model.trim="tenantSignupForm.fullName" required>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Country</span>
-              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="tenantSignupForm.countryId" required x-effect='$nextTick(() => { $el.value = tenantSignupForm.countryId ?? "" })'>
-                <option value="">Select country</option>
-                <template x-for="country in publicCountries" :key="country.id">
-                  <option :value="country.id" x-text="country.name"></option>
-                </template>
-              </select>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Email</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="email" autocomplete="email" x-model.trim="tenantSignupForm.email" required>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">Phone</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="tel" x-model.trim="tenantSignupForm.phone" required>
-            </label>
-            <label class="block">
-              <span class="mb-2 block text-sm font-medium text-slate-700">National ID number</span>
-              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="tenantSignupForm.idNumber" required>
-            </label>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="block">
-                <span class="mb-2 block text-sm font-medium text-slate-700">Password</span>
-                <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="password" minlength="8" autocomplete="new-password" x-model="tenantSignupForm.password" required>
-              </label>
-              <label class="block">
-                <span class="mb-2 block text-sm font-medium text-slate-700">Confirm</span>
-                <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="password" minlength="8" autocomplete="new-password" x-model="tenantSignupForm.confirmPassword" required>
-              </label>
-            </div>
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
-              Create your tenant profile first. When a landlord, IPM, or PMC requests to link you to a unit, you can accept from your Mushavo account.
-            </div>
-            <button class="flex w-full items-center justify-center rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60" type="submit" :disabled="authLoading">
-              <span x-show="!authLoading">Create tenant account</span>
-              <span x-show="authLoading">Creating...</span>
-            </button>
-            <button class="w-full text-center text-sm font-semibold text-slate-700 hover:underline" type="button" @click="authMode = 'login'; authError = ''; successMessage = ''">Back to sign in</button>
           </form>
 
           <form x-show="authMode === 'staff-signup'" class="space-y-4" @submit.prevent="signUpStaff">
@@ -5572,23 +5484,6 @@
           email: '',
           password: ''
         },
-        landlordSignupForm: {
-          fullName: '',
-          countryId: '',
-          phone: '',
-          email: '',
-          password: '',
-          confirmPassword: ''
-        },
-        tenantSignupForm: {
-          fullName: '',
-          countryId: '',
-          email: '',
-          phone: '',
-          idNumber: '',
-          password: '',
-          confirmPassword: ''
-        },
         staffSignupForm: {
           fullName: '',
           phone: '',
@@ -6193,7 +6088,14 @@
 
             if (!data.session) {
               const params = new URLSearchParams(window.location.search);
-              if (params.get('signup') === 'landlord') this.authMode = 'landlord-signup';
+              if (params.get('signup') === 'landlord') {
+                window.location.href = 'landlord-signup.html';
+                return;
+              }
+              if (params.get('signup') === 'tenant') {
+                window.location.href = 'tenant-signup.html';
+                return;
+              }
               this.currentShell = 'login';
               this.booting = false;
               return;
@@ -6258,8 +6160,6 @@
         authTitle() {
           const titles = {
             login: 'Sign in to Mushavo',
-            'landlord-signup': 'Create landlord account',
-            'tenant-signup': 'Create tenant account',
             'staff-signup': 'Create staff account'
           };
           return titles[this.authMode] || titles.login;
@@ -6268,8 +6168,6 @@
         authDescription() {
           const descriptions = {
             login: 'Access is invite-only for staff, IPM, and PMC accounts. Landlords and tenants can create accounts directly.',
-            'landlord-signup': 'Create your free landlord account with all required details.',
-            'tenant-signup': 'Create your tenant profile so landlords, IPMs, and PMCs can request to link you to a unit.',
             'staff-signup': 'Use your landlord code to request staff access.'
           };
           return descriptions[this.authMode] || descriptions.login;
@@ -8833,7 +8731,7 @@
                   properties_per_landlord_limit: row.properties_per_landlord_limit || 0,
                   staff_limit: row.staff_limit || 0,
                   cta_label: accountType === 'landlord' && row.plan_key === 'free' ? 'Sign up for free' : 'Enquire',
-                  cta_href: accountType === 'landlord' && row.plan_key === 'free' ? 'client.html?signup=landlord' : 'contact.html',
+                  cta_href: accountType === 'landlord' && row.plan_key === 'free' ? 'landlord-signup.html' : 'contact.html',
                   popular: row.plan_key === 'starter' || row.plan_key === 'pro',
                   public_active: true
                 });
@@ -16934,253 +16832,6 @@
           if (data.user && !sameLoadedUser) {
             await this.loadAuthenticatedUser(data.user);
           }
-        },
-
-        async checkSignupIdentityAvailable(email, phone) {
-          const normalizedEmail = String(email || '').trim().toLowerCase();
-          const normalizedPhone = String(phone || '').replace(/\D/g, '');
-
-          if (!normalizedEmail || normalizedPhone.length < 6) {
-            return {
-              available: false,
-              message: 'Enter a valid email and phone number before creating the account.'
-            };
-          }
-
-          const { data, error } = await supabaseClient.rpc('signup_identity_exists', {
-            p_email: normalizedEmail,
-            p_phone: phone || ''
-          });
-
-          if (error) {
-            return {
-              available: false,
-              message: 'Mushavo could not safely check whether this account already exists. Please contact Mushavo support.'
-            };
-          }
-
-          if (data === true) {
-            return {
-              available: false,
-              message: 'Your account already exists. Please contact Mushavo support.'
-            };
-          }
-
-          return { available: true, message: '' };
-        },
-
-        async checkTenantSignupIdentityAvailable(email, phone, idNumber) {
-          const normalizedEmail = String(email || '').trim().toLowerCase();
-          const normalizedPhone = String(phone || '').replace(/\D/g, '');
-          const normalizedId = String(idNumber || '').trim();
-
-          if (!normalizedEmail || normalizedPhone.length < 6 || !normalizedId) {
-            return {
-              available: false,
-              message: 'Enter a valid email, phone number, and national ID number before creating the account.'
-            };
-          }
-
-          const { data, error } = await supabaseClient.rpc('tenant_signup_identity_exists', {
-            p_email: normalizedEmail,
-            p_phone: phone || '',
-            p_id_number: normalizedId
-          });
-
-          if (error) {
-            return {
-              available: false,
-              message: 'Mushavo could not safely check whether this tenant account already exists. Please contact Mushavo support.'
-            };
-          }
-
-          if (data === true) {
-            return {
-              available: false,
-              message: 'Your account already exists. Please contact Mushavo support.'
-            };
-          }
-
-          return { available: true, message: '' };
-        },
-
-        async signUpLandlord() {
-          this.authError = '';
-          this.successMessage = '';
-
-          if (!this.landlordSignupForm.fullName || !this.landlordSignupForm.countryId || !this.landlordSignupForm.phone || !this.landlordSignupForm.email || !this.landlordSignupForm.password || !this.landlordSignupForm.confirmPassword) {
-            this.authError = 'All landlord signup details are required.';
-            return;
-          }
-
-          if (this.landlordSignupForm.password !== this.landlordSignupForm.confirmPassword) {
-            this.authError = 'Passwords do not match.';
-            return;
-          }
-
-          this.authLoading = true;
-          const availability = await this.checkSignupIdentityAvailable(
-            this.landlordSignupForm.email,
-            this.landlordSignupForm.phone
-          );
-
-          if (!availability.available) {
-            this.authError = availability.message;
-            this.authLoading = false;
-            return;
-          }
-
-          await supabaseClient.auth.signOut();
-
-          const { data, error } = await supabaseClient.auth.signUp({
-            email: this.landlordSignupForm.email,
-            password: this.landlordSignupForm.password,
-            options: {
-              data: {
-                mushavo_signup: 'landlord_free',
-                full_name: this.landlordSignupForm.fullName,
-                phone: this.landlordSignupForm.phone || '',
-                country_id: this.landlordSignupForm.countryId
-              }
-            }
-          });
-
-          if (error) {
-            this.authError = /already registered|already exists|user exists/i.test(error.message || '')
-              ? 'Your account already exists. Please contact Mushavo support.'
-              : error.message;
-            this.authLoading = false;
-            return;
-          }
-
-          if (!data.session || !data.user) {
-            this.authLoading = false;
-            this.successMessage = 'Check your email to verify your landlord account, then sign in to finish setup.';
-            this.authMode = 'login';
-            return;
-          }
-
-          const { error: registerError } = await supabaseClient.rpc('register_free_landlord', {
-            p_full_name: this.landlordSignupForm.fullName,
-            p_phone: this.landlordSignupForm.phone || '',
-            p_country_id: this.landlordSignupForm.countryId
-          });
-
-          if (registerError) {
-            this.authError = /already exists|phone number|email|duplicate/i.test(registerError.message || '')
-              ? 'Your account already exists. Please contact Mushavo support.'
-              : this.friendlyDatabaseError(registerError, 'Your free landlord account could not be created. Please contact Mushavo support.');
-            this.authLoading = false;
-            return;
-          }
-
-          await supabaseClient.auth.signOut();
-          this.loginForm.email = this.landlordSignupForm.email;
-          this.landlordSignupForm = {
-            fullName: '',
-            countryId: '',
-            phone: '',
-            email: '',
-            password: '',
-            confirmPassword: ''
-          };
-          this.authMode = 'login';
-          this.authLoading = false;
-          this.successMessage = 'Free landlord account created. Sign in to start with your first property and unit.';
-        },
-
-        async signUpTenant() {
-          this.authError = '';
-          this.successMessage = '';
-
-          if (!this.tenantSignupForm.fullName || !this.tenantSignupForm.countryId || !this.tenantSignupForm.email || !this.tenantSignupForm.phone || !this.tenantSignupForm.idNumber || !this.tenantSignupForm.password || !this.tenantSignupForm.confirmPassword) {
-            this.authError = 'All tenant signup details are required.';
-            return;
-          }
-
-          if (this.tenantSignupForm.password !== this.tenantSignupForm.confirmPassword) {
-            this.authError = 'Passwords do not match.';
-            return;
-          }
-
-          if (this.tenantSignupForm.password.length < 8) {
-            this.authError = 'Password must be at least 8 characters.';
-            return;
-          }
-
-          this.authLoading = true;
-          const availability = await this.checkTenantSignupIdentityAvailable(
-            this.tenantSignupForm.email,
-            this.tenantSignupForm.phone,
-            this.tenantSignupForm.idNumber
-          );
-
-          if (!availability.available) {
-            this.authError = availability.message;
-            this.authLoading = false;
-            return;
-          }
-
-          await supabaseClient.auth.signOut();
-
-          const { data, error } = await supabaseClient.auth.signUp({
-            email: this.tenantSignupForm.email,
-            password: this.tenantSignupForm.password,
-            options: {
-              data: {
-                mushavo_signup: 'tenant_direct',
-                full_name: this.tenantSignupForm.fullName,
-                phone: this.tenantSignupForm.phone,
-                id_number: this.tenantSignupForm.idNumber,
-                country_id: this.tenantSignupForm.countryId
-              }
-            }
-          });
-
-          if (error) {
-            this.authError = /already registered|already exists|user exists/i.test(error.message || '')
-              ? 'Your account already exists. Please contact Mushavo support.'
-              : error.message;
-            this.authLoading = false;
-            return;
-          }
-
-          if (!data.session || !data.user) {
-            this.authLoading = false;
-            this.successMessage = 'Check your email to verify your tenant account, then sign in to finish setup.';
-            this.authMode = 'login';
-            return;
-          }
-
-          const { error: registerError } = await supabaseClient.rpc('register_tenant_account', {
-            p_full_name: this.tenantSignupForm.fullName,
-            p_phone: this.tenantSignupForm.phone,
-            p_id_number: this.tenantSignupForm.idNumber,
-            p_country_id: this.tenantSignupForm.countryId
-          });
-
-          if (registerError) {
-            this.authError = /already exists|phone number|email|national id|duplicate/i.test(registerError.message || '')
-              ? 'Your account already exists. Please contact Mushavo support.'
-              : this.friendlyDatabaseError(registerError, 'Your tenant account could not be created. Please contact Mushavo support.');
-            this.authLoading = false;
-            return;
-          }
-
-          await supabaseClient.auth.signOut();
-          this.loginForm.email = this.tenantSignupForm.email;
-          this.tenantSignupForm = {
-            fullName: '',
-            countryId: '',
-            email: '',
-            phone: '',
-            idNumber: '',
-            password: '',
-            confirmPassword: ''
-          };
-          this.authMode = 'login';
-          this.authLoading = false;
-          this.successMessage = 'Tenant account created. Sign in to view requests and your unit details.';
         },
 
         async signUpStaff() {

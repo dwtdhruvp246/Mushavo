@@ -153,7 +153,7 @@
         label: 'Zimbabwe',
         plans: {
           landlord: [
-            { name: 'Free', monthly: 0, yearly: 0, limits: '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', description: 'For one-unit landlords and landlords invited by an IPM or PMC.', cta: 'Sign up for free', href: 'client.html?signup=landlord' },
+            { name: 'Free', monthly: 0, yearly: 0, limits: '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', description: 'For one-unit landlords and landlords invited by an IPM or PMC.', cta: 'Sign up for free', href: 'landlord-signup.html' },
             { name: 'Starter', monthly: 4, yearly: 44, limits: '2 properties, 8 units, 1 staff, 1 IPM or PMC connection', description: 'For a small landlord who needs more than the free single-unit account.' },
             { name: 'Growth', monthly: 10, yearly: 110, limits: '6 properties, 35 units, 3 staff, 2 IPM or PMC connections', description: 'For growing owners with multiple units.' },
             { name: 'Portfolio', monthly: 22, yearly: 242, limits: '20 properties, 120 units, 8 staff, 5 IPM or PMC connections', description: 'For larger private portfolios.' },
@@ -187,7 +187,7 @@
         label: 'Malaysia',
         plans: {
           landlord: [
-            { name: 'Free', monthly: 0, yearly: 0, limits: '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', description: 'For one-unit landlords and landlords invited by an IPM or PMC.', cta: 'Sign up for free', href: 'client.html?signup=landlord' },
+            { name: 'Free', monthly: 0, yearly: 0, limits: '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', description: 'For one-unit landlords and landlords invited by an IPM or PMC.', cta: 'Sign up for free', href: 'landlord-signup.html' },
             { name: 'Starter', monthly: 19, yearly: 209, limits: '2 properties, 8 units, 1 staff, 1 IPM or PMC connection', description: 'For a small landlord who needs more than the free single-unit account.' },
             { name: 'Growth', monthly: 59, yearly: 649, limits: '6 properties, 35 units, 3 staff, 2 IPM or PMC connections', description: 'For growing owners with multiple units.' },
             { name: 'Portfolio', monthly: 149, yearly: 1639, limits: '20 properties, 120 units, 8 staff, 5 IPM or PMC connections', description: 'For larger private portfolios.' },
@@ -255,7 +255,7 @@
           description: row.description || '',
           customPrice: row.custom_price_label || '',
           cta: row.cta_label || (row.account_type === 'landlord' && row.plan_key === 'free' ? 'Sign up for free' : 'Enquire'),
-          href: row.cta_href || (row.account_type === 'landlord' && row.plan_key === 'free' ? 'client.html?signup=landlord' : 'contact.html'),
+          href: row.account_type === 'landlord' && row.plan_key === 'free' ? 'landlord-signup.html' : (row.cta_href || 'contact.html'),
           popular: Boolean(row.popular)
         });
       });
