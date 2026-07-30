@@ -1573,12 +1573,17 @@
               <form class="space-y-4" @submit.prevent="createCountry">
                 <label class="block">
                   <span class="mb-2 block text-sm font-medium text-slate-700">Country name</span>
-                  <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="admin.countryForm.name" required>
+                  <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="admin.countryForm.countryId" @change="syncAdminCountryFormFromSelection" x-effect='$nextTick(() => { $el.value = admin.countryForm.countryId ?? "" })' required>
+                    <option value="">Select country</option>
+                    <template x-for="country in adminCountryDropdownOptions()" :key="`country-option-${country.id}`">
+                      <option :value="country.id" x-text="country.name"></option>
+                    </template>
+                  </select>
                 </label>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label class="block">
                     <span class="mb-2 block text-sm font-medium text-slate-700">Country code</span>
-                    <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm uppercase outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" maxlength="3" x-model.trim="admin.countryForm.code" placeholder="ZW">
+                    <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm uppercase text-slate-500 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" maxlength="3" x-model.trim="admin.countryForm.code" placeholder="ZW" readonly>
                   </label>
                   <label class="block">
                     <span class="mb-2 block text-sm font-medium text-slate-700">Currency code</span>
@@ -5718,6 +5723,7 @@
             expiresAt: ''
           },
           countryForm: {
+            countryId: '',
             name: '',
             code: '',
             currencyCode: ''
@@ -8037,6 +8043,7 @@
 
           if (modalName === 'country') {
             this.admin.countryForm = {
+              countryId: '',
               name: '',
               code: '',
               currencyCode: ''
@@ -8842,6 +8849,19 @@
           return (this.admin?.countries || []).find(country => String(country.code || '').toUpperCase() === normalized) || null;
         },
 
+        adminCountryDropdownOptions() {
+          return [...(this.admin?.countries || [])]
+            .filter(country => country?.id && country.name)
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        },
+
+        syncAdminCountryFormFromSelection() {
+          const country = this.countryById(this.admin.countryForm.countryId);
+          this.admin.countryForm.name = country?.name || '';
+          this.admin.countryForm.code = country?.code || '';
+          this.admin.countryForm.currencyCode = country?.currency_code || this.admin.countryForm.currencyCode || '';
+        },
+
         pricingPlanCountryLabel(plan) {
           return plan?.country?.name || plan?.country_name || this.adminCountryName(plan?.country_id) || plan?.country_code || '-';
         },
@@ -9250,6 +9270,14 @@
         async createCountry() {
           this.admin.formError = '';
           this.admin.saving = true;
+          this.syncAdminCountryFormFromSelection();
+
+          const selectedCountry = this.countryById(this.admin.countryForm.countryId);
+          if (!selectedCountry) {
+            this.admin.formError = 'Select a country from the list.';
+            this.admin.saving = false;
+            return;
+          }
 
           const payload = {
             name: this.admin.countryForm.name,
@@ -9259,7 +9287,8 @@
 
           const { data, error } = await supabaseClient
             .from('countries')
-            .insert(payload)
+            .update(payload)
+            .eq('id', selectedCountry.id)
             .select('id')
             .single();
 
@@ -9269,7 +9298,7 @@
             return;
           }
 
-          this.admin.message = 'Country added.';
+          this.admin.message = 'Country selected.';
           this.admin.selectedCountryId = data.id;
           this.closeAdminModal();
           await this.loadSuperAdminData();
