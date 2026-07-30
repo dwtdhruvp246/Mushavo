@@ -1,1429 +1,266 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Trade backtesting journal with Supabase storage" />
-  <title>Trade Backtesting Journal</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mushavo | Your property, handled simply.</title>
+  <meta name="description" content="Mushavo helps landlords, individual portfolio managers, and property management companies manage properties, tenants, leases, payments, and maintenance.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="i18n.js" defer></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#0f172a',
+            muted: '#64748b',
+            brand: '#00806b',
+            brandDark: '#075e56'
+          },
+          boxShadow: {
+            glass: '0 24px 80px rgba(15, 23, 42, 0.12)'
+          }
+        }
+      }
+    };
+  </script>
   <style>
-    :root {
-      --bg: #eef3f9;
-      --panel: #ffffff;
-      --panel-2: #f3f6fb;
-      --border: #d4deeb;
-      --text: #172033;
-      --muted: #66758d;
-      --primary: #3f6ee8;
-      --primary-hover: #315bc8;
-      --success: #168a4b;
-      --danger: #d94359;
-      --warning: #d69a27;
-      --shadow: 0 16px 38px rgba(36, 55, 84, .12);
-      --radius: 14px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at 10% 0%, rgba(63,110,232,.11), transparent 34%),
-        radial-gradient(circle at 100% 10%, rgba(22,138,75,.07), transparent 28%),
-        var(--bg);
-      color: var(--text);
-    }
-
-    button, input, select, textarea { font: inherit; }
-
-    .app {
-      width: min(1600px, 96%);
-      margin: 0 auto;
-      padding: 28px 0 60px;
-    }
-
-    .header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 20px;
-    }
-
-    .title-wrap h1 {
-      margin: 0;
-      font-size: clamp(1.65rem, 3vw, 2.45rem);
-      letter-spacing: -.04em;
-    }
-
-    .title-wrap p {
-      margin: 8px 0 0;
-      color: var(--muted);
-      max-width: 760px;
-      line-height: 1.55;
-    }
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--muted);
-      white-space: nowrap;
-      padding: 10px 13px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: rgba(255,255,255,.88);
-    }
-
-    .status-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: var(--warning);
-      box-shadow: 0 0 0 4px rgba(247,185,85,.12);
-    }
-
-    .status.connected .status-dot {
-      background: var(--success);
-      box-shadow: 0 0 0 4px rgba(46,204,113,.12);
-    }
-
-    .panel {
-      background: rgba(255,255,255,.96);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-
-    .form-panel {
-      padding: 20px;
-      margin-bottom: 18px;
-    }
-
-    .section-heading {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-
-    .section-heading h2 {
-      margin: 0;
-      font-size: 1.05rem;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: 160px minmax(180px, 1fr) repeat(6, minmax(100px, .65fr));
-      gap: 12px;
-      align-items: end;
-    }
-
-    .field {
-      min-width: 0;
-    }
-
-    .field label {
-      display: block;
-      font-size: .78rem;
-      font-weight: 700;
-      color: var(--muted);
-      margin: 0 0 6px;
-      letter-spacing: .02em;
-    }
-
-    input, select, textarea {
-      width: 100%;
-      color: var(--text);
-      background: #f9fbfe;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      outline: none;
-      transition: .18s ease;
-    }
-
-    input, select {
-      min-height: 42px;
-      padding: 9px 11px;
-    }
-
-    textarea {
-      min-height: 76px;
-      resize: vertical;
-      padding: 10px 11px;
-    }
-
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(91,140,255,.14);
-    }
-
-    .wide-row {
-      display: grid;
-      grid-template-columns: minmax(240px, 2fr) minmax(180px, 1fr);
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    .form-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 15px;
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 10px;
-      min-height: 42px;
-      padding: 10px 16px;
-      cursor: pointer;
-      font-weight: 800;
-      transition: .18s ease;
-    }
-
-    .btn:disabled {
-      cursor: not-allowed;
-      opacity: .6;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: #ffffff;
-    }
-
-    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
-
-    .btn-secondary {
-      background: #f4f7fb;
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: #e9eff7;
-    }
-
-    .btn-danger {
-      background: rgba(255,93,115,.12);
-      color: #ff9aaa;
-      border: 1px solid rgba(255,93,115,.34);
-    }
-
-    .toolbar {
-      padding: 15px;
-      margin-bottom: 18px;
-      display: grid;
-      grid-template-columns: minmax(210px, 1.4fr) repeat(8, minmax(105px, .72fr)) auto;
-      gap: 10px;
-      align-items: end;
-    }
-
-    .toolbar .field label { font-size: .72rem; }
-
-    .summary {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(130px, 1fr));
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .stat {
-      padding: 16px;
-    }
-
-    .stat span {
-      color: var(--muted);
-      font-size: .78rem;
-    }
-
-    .stat strong {
-      display: block;
-      margin-top: 5px;
-      font-size: 1.5rem;
-    }
-
-    .table-panel {
-      overflow: hidden;
-    }
-
-    .table-scroll {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 1350px;
-    }
-
-    th, td {
-      padding: 12px 10px;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-      vertical-align: middle;
-    }
-
-    th {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      background: #edf2f8;
-      color: #45546b;
-      font-size: .76rem;
-      text-transform: uppercase;
-      letter-spacing: .045em;
-      user-select: none;
-    }
-
-    th.sortable {
-      cursor: pointer;
-    }
-
-    th.sortable:hover { color: #172033; }
-
-    tbody tr {
-      transition: background .15s ease;
-    }
-
-    tbody tr:hover {
-      background: rgba(63,110,232,.055);
-    }
-
-    td {
-      font-size: .86rem;
-      color: #263247;
-    }
-
-    .trade-cell {
-      max-width: 240px;
-      overflow-wrap: anywhere;
-    }
-
-    .notes-cell {
-      max-width: 280px;
-      color: var(--muted);
-      overflow-wrap: anywhere;
-    }
-
-    .state-pill {
-      min-width: 45px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 5px 9px;
-      border-radius: 999px;
-      font-weight: 900;
-      border: 1px solid transparent;
-    }
-
-    .state-pass {
-      color: #7af0aa;
-      background: rgba(46,204,113,.11);
-      border-color: rgba(46,204,113,.25);
-    }
-
-    .state-fail {
-      color: #ff8798;
-      background: rgba(255,93,115,.11);
-      border-color: rgba(255,93,115,.25);
-    }
-
-    .state-na {
-      color: #a5b2c7;
-      background: rgba(145,161,186,.1);
-      border-color: rgba(145,161,186,.2);
-    }
-
-    .thumb {
-      width: 88px;
-      height: 54px;
-      display: block;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      cursor: zoom-in;
-      background: #eef3f9;
-    }
-
-    .image-link {
-      color: #8ab0ff;
-      text-decoration: none;
-      font-weight: 700;
-    }
-
-    .image-link:hover { text-decoration: underline; }
-
-    .actions {
-      display: flex;
-      gap: 7px;
-    }
-
-    .icon-btn {
-      min-height: 34px;
-      padding: 6px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      color: var(--text);
-      background: #f3f6fb;
-      font-weight: 700;
-    }
-
-    .icon-btn.delete {
-      color: #ff9aaa;
-      border-color: rgba(255,93,115,.25);
-      background: rgba(255,93,115,.08);
-    }
-
-    .empty {
-      padding: 48px 22px;
-      text-align: center;
-      color: var(--muted);
-    }
-
-    .toast-wrap {
-      position: fixed;
-      right: 18px;
-      bottom: 18px;
-      z-index: 1000;
-      display: grid;
-      gap: 8px;
-    }
-
-    .toast {
-      max-width: 360px;
-      padding: 12px 14px;
-      background: #17253d;
-      color: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-      animation: slideIn .2s ease;
-    }
-
-    .toast.error { border-color: rgba(255,93,115,.5); }
-    .toast.success { border-color: rgba(46,204,113,.45); }
-
-    @keyframes slideIn {
-      from { transform: translateY(8px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    dialog {
-      width: min(1050px, 94vw);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: #ffffff;
-      color: var(--text);
-      box-shadow: 0 25px 80px rgba(0,0,0,.55);
-      padding: 0;
-    }
-
-    dialog::backdrop {
-      background: rgba(21,31,48,.42);
-      backdrop-filter: blur(4px);
-    }
-
-    .dialog-head {
-      padding: 15px 17px;
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .dialog-head h3 { margin: 0; }
-
-    .dialog-body {
-      padding: 16px;
-    }
-
-    .preview-image {
-      display: block;
-      width: 100%;
-      max-height: 75vh;
-      object-fit: contain;
-      border-radius: 10px;
-      background: #eef3f9;
-    }
-
-    pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: #f6f8fc;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-      color: #263247;
-      overflow: auto;
-      max-height: 60vh;
-    }
-
-    .setup-note {
-      color: var(--muted);
-      line-height: 1.55;
-      margin-top: 0;
-    }
-
-
-    @media (max-width: 1200px) {
-      .form-grid {
-        grid-template-columns: repeat(4, minmax(140px, 1fr));
-      }
-
-      .toolbar {
-        grid-template-columns: repeat(3, minmax(150px, 1fr));
-      }
-    }
-
-    @media (max-width: 760px) {
-      .app { width: min(94%, 720px); padding-top: 18px; }
-
-      .header {
-        flex-direction: column;
-      }
-
-      .form-grid,
-      .wide-row,
-      .toolbar,
-      .summary {
-        grid-template-columns: 1fr 1fr;
-      }
-
-
-      .trade-card {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 14px;
-        background: #f8fafd;
-      }
-
-      .trade-card-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 11px;
-      }
-
-      .trade-card h3 {
-        margin: 0;
-        font-size: 1rem;
-      }
-
-      .trade-card-date {
-        color: var(--muted);
-        font-size: .8rem;
-      }
-
-      .level-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        margin: 12px 0;
-      }
-
-      .level-item {
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 8px;
-        text-align: center;
-      }
-
-      .level-item small {
-        display: block;
-        color: var(--muted);
-        margin-bottom: 5px;
-      }
-
-      .trade-card .thumb {
-        width: 100%;
-        height: 170px;
-      }
-    }
-
-    @media (max-width: 520px) {
-      .form-grid,
-      .wide-row,
-      .toolbar,
-      .summary {
-        grid-template-columns: 1fr;
-      }
-
-      .form-actions .btn { flex: 1; }
-      .level-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-  
-    .records-panel {
-      padding: 14px;
-    }
-
-    .record-card-list {
-      display: grid;
-      gap: 16px;
-    }
-
-    .record-card {
-      display: grid;
-      grid-template-columns: minmax(360px, 1.5fr) minmax(320px, 1fr);
-      gap: 18px;
-      padding: 16px;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: #ffffff;
-      box-shadow: 0 8px 24px rgba(36, 55, 84, .07);
-    }
-
-    .record-image-wrap {
-      min-height: 320px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      background: #eef3f9;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .record-image {
-      width: 100%;
-      height: 100%;
-      min-height: 320px;
-      max-height: 520px;
-      object-fit: contain;
-      cursor: zoom-in;
-      display: block;
-      background: #eef3f9;
-    }
-
-    .record-no-image {
-      color: var(--muted);
-      text-align: center;
-      padding: 40px 20px;
-    }
-
-    .record-details {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    .record-heading {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .record-heading h3 {
-      margin: 0;
-      font-size: 1.18rem;
-      overflow-wrap: anywhere;
-    }
-
-    .record-date {
-      margin-top: 5px;
-      color: var(--muted);
-      font-size: .86rem;
-    }
-
-    .record-actions {
-      display: flex;
-      gap: 7px;
-      flex-shrink: 0;
-    }
-
-    .record-levels {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-      gap: 9px;
-      margin: 14px 0;
-    }
-
-    .record-level {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 9px 10px;
-      background: #f7f9fc;
-      border: 1px solid var(--border);
-      border-radius: 9px;
-    }
-
-    .record-level span:first-child {
-      color: var(--muted);
-      font-size: .8rem;
-      font-weight: 700;
-    }
-
-    .record-notes {
-      margin-top: auto;
-      padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #f9fbfe;
-      color: #40506a;
-      line-height: 1.5;
-      overflow-wrap: anywhere;
-    }
-
-    .record-notes strong {
-      display: block;
-      color: var(--text);
-      margin-bottom: 5px;
-      font-size: .82rem;
-    }
-
-    .record-link {
-      margin-top: 11px;
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 750;
-      overflow-wrap: anywhere;
-    }
-
-    .record-link:hover {
-      text-decoration: underline;
-    }
-
-    @media (max-width: 900px) {
-      .record-card {
-        grid-template-columns: 1fr;
-      }
-
-      .record-image-wrap,
-      .record-image {
-        min-height: 260px;
-      }
-    }
-
-    @media (max-width: 520px) {
-      .record-card {
-        padding: 11px;
-      }
-
-      .record-heading {
-        flex-direction: column;
-      }
-
-      .record-actions {
-        width: 100%;
-      }
-
-      .record-actions .icon-btn {
-        flex: 1;
-      }
-
-      .record-levels {
-        grid-template-columns: 1fr;
-      }
-
-      .record-image-wrap,
-      .record-image {
-        min-height: 210px;
-      }
-    }
-
+    html { scroll-behavior: smooth; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   </style>
 </head>
+<body class="min-h-screen overflow-x-hidden bg-[#eefbf7] text-ink">
+  <div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute left-[-8rem] top-[-8rem] h-80 w-80 rounded-full bg-emerald-200/60 blur-3xl"></div>
+    <div class="absolute right-[-10rem] top-20 h-96 w-96 rounded-full bg-cyan-200/50 blur-3xl"></div>
+    <div class="absolute bottom-[-12rem] left-1/3 h-96 w-96 rounded-full bg-teal-100 blur-3xl"></div>
+  </div>
 
-<body>
-  <main class="app">
-    <header class="header">
-      <div class="title-wrap">
-        <h1>Trade Backtesting Journal</h1>
-        <p>
-          Record each setup, mark whether price passed your key session levels,
-          attach a chart image link, and review your backtesting data using filters and sorting.
-        </p>
+  <header class="sticky top-0 z-40 border-b border-white/50 bg-white/55 backdrop-blur-2xl">
+    <div class="mx-auto flex w-full max-w-[96rem] items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <a href="index.html" class="flex min-w-0 items-center gap-3">
+        <img src="mushavo-logo.png" alt="Mushavo logo" class="h-[7.875rem] w-auto sm:h-36">
+      </a>
+      <button id="menuButton" class="inline-flex items-center rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-sm font-semibold shadow-sm md:hidden" type="button" aria-expanded="false" aria-controls="mobileMenu">
+        Menu
+      </button>
+      <nav class="hidden items-center gap-2 md:flex">
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="about.html">About</a>
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="pricing.html">Pricing</a>
+        <a class="rounded-2xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/70" href="contact.html">Contact</a>
+        <a class="rounded-2xl border border-emerald-200 bg-white/70 px-4 py-2 text-sm font-bold text-brandDark shadow-sm transition hover:bg-white" href="client.html">Client Area</a>
+      </nav>
+    </div>
+    <nav id="mobileMenu" class="mx-auto hidden w-full max-w-[96rem] px-4 pb-4 sm:px-6 md:hidden">
+      <div class="grid gap-2 rounded-3xl border border-white/70 bg-white/70 p-3 shadow-glass backdrop-blur-xl">
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="about.html">About</a>
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="pricing.html">Pricing</a>
+        <a class="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50" href="contact.html">Contact</a>
+        <a class="rounded-2xl bg-brand px-4 py-3 text-sm font-bold text-white" href="client.html">Client Area</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="mx-auto grid w-full max-w-[96rem] items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-20">
+      <div class="min-w-0">
+        <p class="mb-4 inline-flex rounded-full border border-emerald-200 bg-white/70 px-4 py-2 text-sm font-bold text-brandDark shadow-sm backdrop-blur-xl">Property management software for landlords, IPMs, and PMCs</p>
+        <h1 class="max-w-4xl text-4xl font-black leading-tight tracking-tight text-slate-950 sm:text-5xl lg:text-7xl">One place for rent, leases, tenants, maintenance, and property teams.</h1>
+        <p class="mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">Mushavo helps property owners and managers run daily operations from a clear online workspace: properties, units, tenants, lease documents, payment proof, maintenance issues, staff permissions, and subscriptions.</p>
+        <div class="mt-6 flex flex-wrap gap-2 text-sm font-bold text-slate-700">
+          <span class="rounded-full border border-white/70 bg-white/70 px-4 py-2 shadow-sm">Landlords</span>
+          <span class="rounded-full border border-white/70 bg-white/70 px-4 py-2 shadow-sm">Individual Portfolio Managers</span>
+          <span class="rounded-full border border-white/70 bg-white/70 px-4 py-2 shadow-sm">Property Management Companies</span>
+        </div>
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          <a href="pricing.html" class="inline-flex items-center justify-center rounded-2xl bg-brand px-6 py-4 text-base font-bold text-white shadow-lg shadow-emerald-900/10 transition hover:bg-brandDark">View Pricing</a>
+          <a href="client.html" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white/75 px-6 py-4 text-base font-bold text-slate-900 shadow-sm backdrop-blur-xl transition hover:bg-white">Go to Client Area</a>
+        </div>
       </div>
 
-      <div id="connectionStatus" class="status">
-        <span class="status-dot"></span>
-        <span id="connectionText">Connecting…</span>
-      </div>
-    </header>
-
-    <section class="panel form-panel">
-      <div class="section-heading">
-        <h2 id="formTitle">Add Backtest Record</h2>
-        <button class="btn btn-secondary" type="button" onclick="openSetup()">Supabase Setup</button>
-      </div>
-
-      <form id="tradeForm">
-        <input type="hidden" id="recordId" />
-
-        <div class="form-grid">
-          <div class="field">
-            <label for="tradeDate">Date</label>
-            <input id="tradeDate" type="date" required />
+      <div class="rounded-[2rem] border border-white/70 bg-white/45 p-3 shadow-glass backdrop-blur-2xl">
+        <div class="overflow-hidden rounded-[1.5rem] border border-white/70 bg-white/70">
+          <div class="flex items-center justify-between border-b border-slate-200/70 px-5 py-4">
+            <div>
+              <p class="text-sm font-semibold text-slate-500">Live operating view</p>
+              <p class="text-xl font-black text-slate-950">Mushavo Workspace</p>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-brandDark">Active</span>
           </div>
-
-          <div class="field">
-            <label for="tradeName">Trade</label>
-            <input id="tradeName" type="text" placeholder="e.g. XAUUSD Buy" required />
+          <div class="grid gap-3 p-5 sm:grid-cols-2">
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Properties</p>
+              <p class="mt-3 text-4xl font-black">12</p>
+            </div>
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Units</p>
+              <p class="mt-3 text-4xl font-black text-brandDark">84</p>
+            </div>
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Open issues</p>
+              <p class="mt-3 text-4xl font-black text-amber-600">6</p>
+            </div>
+            <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm">
+              <p class="text-sm font-semibold text-slate-500">Rent recorded</p>
+              <p class="mt-3 text-4xl font-black text-brandDark">$9.8k</p>
+            </div>
           </div>
-
-          <div class="field">
-            <label for="pdh">PDH</label>
-            <select id="pdh"></select>
-          </div>
-
-          <div class="field">
-            <label for="pdl">PDL</label>
-            <select id="pdl"></select>
-          </div>
-
-          <div class="field">
-            <label for="asiaH">Asia H</label>
-            <select id="asiaH"></select>
-          </div>
-
-          <div class="field">
-            <label for="asiaL">Asia L</label>
-            <select id="asiaL"></select>
-          </div>
-
-          <div class="field">
-            <label for="londonH">London H</label>
-            <select id="londonH"></select>
-          </div>
-
-          <div class="field">
-            <label for="londonL">London L</label>
-            <select id="londonL"></select>
+          <div class="border-t border-slate-200/70 p-5">
+            <div class="rounded-3xl bg-slate-950 p-5 text-white">
+              <p class="text-sm font-semibold text-emerald-200">This week</p>
+              <p class="mt-2 text-2xl font-black">8 payments verified, 3 leases expiring soon, 4 maintenance tasks resolved.</p>
+            </div>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="wide-row">
-          <div class="field">
-            <label for="imageUrl">Chart Image Link</label>
-            <input id="imageUrl" type="url" placeholder="https://example.com/chart.png" />
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div class="mb-6 max-w-3xl">
+        <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">What Mushavo is</p>
+        <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">A practical command centre for property operations.</h2>
+        <p class="mt-3 leading-8 text-slate-600">Instead of keeping records in chats, notebooks, spreadsheets, and separate folders, Mushavo keeps the important work connected to the right property, unit, tenant, landlord, staff member, and document.</p>
+      </div>
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="rounded-[1.75rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-xl">
+          <h2 class="text-xl font-black">For landlords</h2>
+          <p class="mt-3 leading-7 text-slate-600">Create properties and units, invite tenants, log rent, upload lease PDFs, handle maintenance, and control what staff can see or change.</p>
+        </article>
+        <article class="rounded-[1.75rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-xl">
+          <h2 class="text-xl font-black">For individual portfolio managers</h2>
+          <p class="mt-3 leading-7 text-slate-600">Work with multiple landlords, request access with a landlord code, and manage only the accounts and properties you are approved for.</p>
+        </article>
+        <article class="rounded-[1.75rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-xl">
+          <h2 class="text-xl font-black">For property management companies</h2>
+          <p class="mt-3 leading-7 text-slate-600">Connect with landlords, assign company staff, manage permissions, and organize work across properties without mixing client records.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div class="rounded-[2rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-2xl sm:p-8 lg:p-10">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">What it manages</p>
+            <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">The everyday property work that usually gets scattered.</h2>
           </div>
-
-          <div class="field">
-            <label for="notes">Notes</label>
-            <textarea id="notes" placeholder="Entry reason, session, outcome, observations…"></textarea>
+          <p class="max-w-2xl leading-8 text-slate-600">Mushavo is designed around the real workflow: create the property, assign the unit, link the tenant, store the lease, track rent, handle issues, and keep every action accountable.</p>
+        </div>
+        <div class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Properties and units</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Track property details, unit status, occupancy, and vacancy in one place.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Tenants and leases</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Keep tenant profiles, active leases, deposits, lease dates, and PDF agreements linked.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Payments and proof</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Let tenants upload proof, then review, verify, reject, or log payments manually.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Maintenance</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Create issues with photos, assign work, update progress, and keep resolution notes.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Staff permissions</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Choose exactly who can view, add, edit, upload, approve, archive, or manage records.</p>
+          </div>
+          <div class="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-sm">
+            <p class="font-black">Subscriptions by market</p>
+            <p class="mt-2 text-sm leading-6 text-slate-600">Support country-based pricing, account limits, and renewals as Mushavo expands.</p>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="form-actions">
-          <button id="saveBtn" class="btn btn-primary" type="submit">Save Record</button>
-          <button id="cancelEditBtn" class="btn btn-secondary" type="button" hidden>Cancel Edit</button>
-          <button class="btn btn-secondary" type="button" onclick="resetForm()">Clear</button>
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-12 sm:px-6 lg:px-8">
+      <div class="rounded-[2rem] border border-white/70 bg-white/55 p-6 shadow-glass backdrop-blur-2xl sm:p-8 lg:p-10">
+        <div class="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div>
+            <p class="text-sm font-black uppercase tracking-[0.2em] text-brandDark">Why Mushavo</p>
+            <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Less chasing. More control.</h2>
+            <p class="mt-4 leading-8 text-slate-600">Property work becomes messy when rent records, lease PDFs, maintenance photos, approvals, and staff permissions live in different places. Mushavo brings them together without making the system feel heavy.</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Lease and file storage</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Upload agreements, payment proof, and maintenance photos securely.</p>
+            </div>
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Permission control</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Give staff and managers only the access they need.</p>
+            </div>
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Country pricing</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Show plans that match the market where each account operates.</p>
+            </div>
+            <div class="rounded-3xl bg-white/80 p-5 shadow-sm">
+              <p class="font-bold">Clear operations</p>
+              <p class="mt-2 text-sm leading-6 text-slate-600">Track rent, maintenance, tenants, units, and subscriptions from one place.</p>
+            </div>
+          </div>
         </div>
-      </form>
+      </div>
     </section>
 
-    <section class="summary">
-      <div class="panel stat"><span>Visible Records</span><strong id="totalRecords">0</strong></div>
-      <div class="panel stat"><span>PDH Passed</span><strong id="pdhCount">0</strong></div>
-      <div class="panel stat"><span>PDL Passed</span><strong id="pdlCount">0</strong></div>
-      <div class="panel stat"><span>With Charts</span><strong id="chartCount">0</strong></div>
+    <section class="mx-auto w-full max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div class="grid gap-4 lg:grid-cols-4">
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">01</p>
+          <h3 class="mt-3 text-xl font-black">Create the account</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Admin creates landlords, IPMs, PMCs, and country-based subscriptions.</p>
+        </div>
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">02</p>
+          <h3 class="mt-3 text-xl font-black">Add the portfolio</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Landlords add properties and units, then link tenants and leases.</p>
+        </div>
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">03</p>
+          <h3 class="mt-3 text-xl font-black">Control access</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Permissions decide what each staff member, IPM, or PMC can do.</p>
+        </div>
+        <div class="rounded-[1.75rem] border border-white/70 bg-white/60 p-6 shadow-glass backdrop-blur-xl">
+          <p class="text-sm font-black text-brandDark">04</p>
+          <h3 class="mt-3 text-xl font-black">Run daily work</h3>
+          <p class="mt-3 text-sm leading-6 text-slate-600">Payments, maintenance, documents, reminders, and records stay connected.</p>
+        </div>
+      </div>
     </section>
 
-    <section class="panel toolbar">
-      <div class="field">
-        <label for="searchFilter">Search Trade / Notes</label>
-        <input id="searchFilter" type="search" placeholder="Search…" />
+    <section class="mx-auto w-full max-w-[96rem] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+      <div class="rounded-[2rem] bg-slate-950 p-8 text-white shadow-glass sm:p-10">
+        <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-3xl font-black">Ready to run property work with less stress?</h2>
+            <p class="mt-3 max-w-2xl text-slate-300">Explore the plans, then sign into your client area when your account is created.</p>
+          </div>
+          <a href="pricing.html" class="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white px-6 py-4 font-bold text-slate-950 transition hover:bg-emerald-50">See Plans</a>
+        </div>
       </div>
-
-      <div class="field">
-        <label for="dateFrom">Date From</label>
-        <input id="dateFrom" type="date" />
-      </div>
-
-      <div class="field">
-        <label for="dateTo">Date To</label>
-        <input id="dateTo" type="date" />
-      </div>
-
-      <div class="field"><label for="filterPdh">PDH</label><select id="filterPdh"></select></div>
-      <div class="field"><label for="filterPdl">PDL</label><select id="filterPdl"></select></div>
-      <div class="field"><label for="filterAsiaH">Asia H</label><select id="filterAsiaH"></select></div>
-      <div class="field"><label for="filterAsiaL">Asia L</label><select id="filterAsiaL"></select></div>
-      <div class="field"><label for="filterLondonH">London H</label><select id="filterLondonH"></select></div>
-      <div class="field"><label for="filterLondonL">London L</label><select id="filterLondonL"></select></div>
-
-      <div class="field">
-        <label for="sortSelect">Sort By</label>
-        <select id="sortSelect">
-          <option value="trade_date|desc">Date: Newest First</option>
-          <option value="trade_date|asc">Date: Oldest First</option>
-          <option value="trade|asc">Trade: A–Z</option>
-          <option value="trade|desc">Trade: Z–A</option>
-          <option value="pdh|asc">PDH</option>
-          <option value="pdl|asc">PDL</option>
-          <option value="asia_h|asc">Asia High</option>
-          <option value="asia_l|asc">Asia Low</option>
-          <option value="london_h|asc">London High</option>
-          <option value="london_l|asc">London Low</option>
-        </select>
-      </div>
-
-      <button class="btn btn-secondary" type="button" onclick="clearFilters()">Clear Filters</button>
-    </section>
-
-    <section class="panel records-panel">
-      <div id="recordCardList" class="record-card-list"></div>
-      <div id="emptyState" class="empty" hidden>No records match your current filters.</div>
     </section>
   </main>
 
-  <div id="toastWrap" class="toast-wrap"></div>
-
-  <dialog id="imageDialog">
-    <div class="dialog-head">
-      <h3>Chart Preview</h3>
-      <button class="icon-btn" onclick="imageDialog.close()">Close</button>
+  <footer class="border-t border-white/60 bg-white/50 backdrop-blur-xl">
+    <div class="mx-auto flex w-full max-w-[96rem] flex-col gap-4 px-4 py-8 text-sm text-slate-600 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+      <p>All rights reserved to Mushavo.</p>
+      <div class="flex flex-wrap gap-4">
+        <a class="font-semibold text-brandDark" href="contact.html">Contact Support</a>
+        <a class="font-semibold text-brandDark" href="client.html">Client Area</a>
+      </div>
     </div>
-    <div class="dialog-body">
-      <img id="dialogImage" class="preview-image" alt="Trade chart preview" />
-    </div>
-  </dialog>
-
-  <dialog id="setupDialog">
-    <div class="dialog-head">
-      <h3>Supabase Database Setup</h3>
-      <button class="icon-btn" onclick="setupDialog.close()">Close</button>
-    </div>
-    <div class="dialog-body">
-      <p class="setup-note">
-        In Supabase, open <strong>SQL Editor</strong>, create a new query, paste the SQL below,
-        and run it once. This creates the required table and Row Level Security policies.
-      </p>
-      <pre id="setupSql"></pre>
-      <button class="btn btn-primary" type="button" onclick="copySetupSql()">Copy SQL</button>
-    </div>
-  </dialog>
+  </footer>
 
   <script>
-    const SUPABASE_URL = "https://qtqwisdfpmxqpxhcrclp.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0cXdpc2RmcG14cXB4aGNyY2xwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MjU2MjUsImV4cCI6MjEwMTAwMTYyNX0.tm-WwM-qMi66ZACzwMVftQFXHpWjQmSuizb-2R0GXsM";
-
-    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    const LEVEL_FIELDS = [
-      ["pdh", "PDH"],
-      ["pdl", "PDL"],
-      ["asia_h", "Asia H"],
-      ["asia_l", "Asia L"],
-      ["london_h", "London H"],
-      ["london_l", "London L"]
-    ];
-
-    const FORM_ID_MAP = {
-      pdh: "pdh",
-      pdl: "pdl",
-      asia_h: "asiaH",
-      asia_l: "asiaL",
-      london_h: "londonH",
-      london_l: "londonL"
-    };
-
-    const FILTER_ID_MAP = {
-      pdh: "filterPdh",
-      pdl: "filterPdl",
-      asia_h: "filterAsiaH",
-      asia_l: "filterAsiaL",
-      london_h: "filterLondonH",
-      london_l: "filterLondonL"
-    };
-
-    const SETUP_SQL = `create table if not exists public.trade_backtests (
-  id bigint generated by default as identity primary key,
-  trade_date date not null,
-  trade text not null,
-  pdh text not null default 'na' check (pdh in ('pass','fail','na')),
-  pdl text not null default 'na' check (pdl in ('pass','fail','na')),
-  asia_h text not null default 'na' check (asia_h in ('pass','fail','na')),
-  asia_l text not null default 'na' check (asia_l in ('pass','fail','na')),
-  london_h text not null default 'na' check (london_h in ('pass','fail','na')),
-  london_l text not null default 'na' check (london_l in ('pass','fail','na')),
-  image_url text,
-  notes text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.trade_backtests enable row level security;
-
-drop policy if exists "Allow public read trade backtests" on public.trade_backtests;
-drop policy if exists "Allow public insert trade backtests" on public.trade_backtests;
-drop policy if exists "Allow public update trade backtests" on public.trade_backtests;
-drop policy if exists "Allow public delete trade backtests" on public.trade_backtests;
-
-create policy "Allow public read trade backtests"
-on public.trade_backtests for select
-to anon
-using (true);
-
-create policy "Allow public insert trade backtests"
-on public.trade_backtests for insert
-to anon
-with check (true);
-
-create policy "Allow public update trade backtests"
-on public.trade_backtests for update
-to anon
-using (true)
-with check (true);
-
-create policy "Allow public delete trade backtests"
-on public.trade_backtests for delete
-to anon
-using (true);
-
-create index if not exists trade_backtests_trade_date_idx
-on public.trade_backtests (trade_date desc);
-
-create or replace function public.set_trade_backtests_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-drop trigger if exists set_trade_backtests_updated_at on public.trade_backtests;
-
-create trigger set_trade_backtests_updated_at
-before update on public.trade_backtests
-for each row execute function public.set_trade_backtests_updated_at();`;
-
-    let records = [];
-    let filteredRecords = [];
-    let sortField = "trade_date";
-    let sortDirection = "desc";
-    let isSaving = false;
-
-    const $ = (id) => document.getElementById(id);
-
-    function escapeHtml(value = "") {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function buildStateOptions(includeAll = false) {
-      return `
-        ${includeAll ? '<option value="all">All</option>' : ""}
-        <option value="pass">✓ Passed</option>
-        <option value="fail">✕ Not Passed</option>
-        <option value="na">— Not in Period</option>
-      `;
-    }
-
-    function initSelects() {
-      Object.values(FORM_ID_MAP).forEach(id => {
-        $(id).innerHTML = buildStateOptions(false);
-        $(id).value = "na";
-      });
-
-      Object.values(FILTER_ID_MAP).forEach(id => {
-        $(id).innerHTML = buildStateOptions(true);
-        $(id).value = "all";
-      });
-    }
-
-    function statePill(state) {
-      if (state === "pass") return '<span class="state-pill state-pass" title="Passed level">✓</span>';
-      if (state === "fail") return '<span class="state-pill state-fail" title="Did not pass level">✕</span>';
-      return '<span class="state-pill state-na" title="Not in this period">—</span>';
-    }
-
-    function stateText(state) {
-      if (state === "pass") return "Passed";
-      if (state === "fail") return "Not Passed";
-      return "Not in Period";
-    }
-
-    function normalizeUrl(url) {
-      const value = String(url || "").trim();
-      if (!value) return "";
-      try {
-        const parsed = new URL(value);
-        return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : "";
-      } catch {
-        return "";
-      }
-    }
-
-    function formatDate(value) {
-      if (!value) return "";
-      return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "2-digit"
-      });
-    }
-
-    function toast(message, type = "") {
-      const node = document.createElement("div");
-      node.className = `toast ${type}`.trim();
-      node.textContent = message;
-      $("toastWrap").appendChild(node);
-      setTimeout(() => node.remove(), 3400);
-    }
-
-    function setConnection(connected, text) {
-      const status = $("connectionStatus");
-      status.classList.toggle("connected", connected);
-      $("connectionText").textContent = text;
-    }
-
-    async function loadRecords() {
-      setConnection(false, "Connecting…");
-
-      const { data, error } = await db
-        .from("trade_backtests")
-        .select("*")
-        .order("trade_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error(error);
-        setConnection(false, "Setup required");
-        records = [];
-        applyFilters();
-        toast("Could not load records. Open Supabase Setup and run the SQL.", "error");
-        return;
-      }
-
-      records = data || [];
-      setConnection(true, "Supabase connected");
-      applyFilters();
-    }
-
-    function getFormPayload() {
-      return {
-        trade_date: $("tradeDate").value,
-        trade: $("tradeName").value.trim(),
-        pdh: $("pdh").value,
-        pdl: $("pdl").value,
-        asia_h: $("asiaH").value,
-        asia_l: $("asiaL").value,
-        london_h: $("londonH").value,
-        london_l: $("londonL").value,
-        image_url: normalizeUrl($("imageUrl").value) || null,
-        notes: $("notes").value.trim() || null
-      };
-    }
-
-    async function saveRecord(event) {
-      event.preventDefault();
-      if (isSaving) return;
-
-      const payload = getFormPayload();
-      if (!payload.trade_date || !payload.trade) {
-        toast("Date and Trade are required.", "error");
-        return;
-      }
-
-      const rawImage = $("imageUrl").value.trim();
-      if (rawImage && !payload.image_url) {
-        toast("Please enter a valid http or https image link.", "error");
-        return;
-      }
-
-      isSaving = true;
-      $("saveBtn").disabled = true;
-      $("saveBtn").textContent = "Saving…";
-
-      const recordId = $("recordId").value;
-      let result;
-
-      if (recordId) {
-        result = await db
-          .from("trade_backtests")
-          .update(payload)
-          .eq("id", recordId)
-          .select()
-          .single();
-      } else {
-        result = await db
-          .from("trade_backtests")
-          .insert(payload)
-          .select()
-          .single();
-      }
-
-      isSaving = false;
-      $("saveBtn").disabled = false;
-      $("saveBtn").textContent = recordId ? "Update Record" : "Save Record";
-
-      if (result.error) {
-        console.error(result.error);
-        toast(`Save failed: ${result.error.message}`, "error");
-        return;
-      }
-
-      toast(recordId ? "Record updated." : "Record saved.", "success");
-      resetForm();
-      await loadRecords();
-    }
-
-    function editRecord(id) {
-      const row = records.find(item => String(item.id) === String(id));
-      if (!row) return;
-
-      $("recordId").value = row.id;
-      $("tradeDate").value = row.trade_date;
-      $("tradeName").value = row.trade || "";
-      $("pdh").value = row.pdh || "na";
-      $("pdl").value = row.pdl || "na";
-      $("asiaH").value = row.asia_h || "na";
-      $("asiaL").value = row.asia_l || "na";
-      $("londonH").value = row.london_h || "na";
-      $("londonL").value = row.london_l || "na";
-      $("imageUrl").value = row.image_url || "";
-      $("notes").value = row.notes || "";
-
-      $("formTitle").textContent = "Edit Backtest Record";
-      $("saveBtn").textContent = "Update Record";
-      $("cancelEditBtn").hidden = false;
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-
-    async function deleteRecord(id) {
-      const row = records.find(item => String(item.id) === String(id));
-      if (!row) return;
-
-      const confirmed = confirm(`Delete "${row.trade}" from ${formatDate(row.trade_date)}?`);
-      if (!confirmed) return;
-
-      const { error } = await db.from("trade_backtests").delete().eq("id", id);
-
-      if (error) {
-        console.error(error);
-        toast(`Delete failed: ${error.message}`, "error");
-        return;
-      }
-
-      toast("Record deleted.", "success");
-      await loadRecords();
-    }
-
-    function resetForm() {
-      $("tradeForm").reset();
-      $("recordId").value = "";
-      $("tradeDate").value = new Date().toISOString().slice(0, 10);
-      Object.values(FORM_ID_MAP).forEach(id => $(id).value = "na");
-      $("formTitle").textContent = "Add Backtest Record";
-      $("saveBtn").textContent = "Save Record";
-      $("cancelEditBtn").hidden = true;
-    }
-
-    function clearFilters() {
-      $("searchFilter").value = "";
-      $("dateFrom").value = "";
-      $("dateTo").value = "";
-      Object.values(FILTER_ID_MAP).forEach(id => $(id).value = "all");
-      $("sortSelect").value = "trade_date|desc";
-      sortField = "trade_date";
-      sortDirection = "desc";
-      applyFilters();
-    }
-
-    function applyFilters() {
-      const search = $("searchFilter").value.trim().toLowerCase();
-      const dateFrom = $("dateFrom").value;
-      const dateTo = $("dateTo").value;
-
-      filteredRecords = records.filter(row => {
-        const textMatch =
-          !search ||
-          String(row.trade || "").toLowerCase().includes(search) ||
-          String(row.notes || "").toLowerCase().includes(search);
-
-        const fromMatch = !dateFrom || row.trade_date >= dateFrom;
-        const toMatch = !dateTo || row.trade_date <= dateTo;
-
-        const levelMatch = LEVEL_FIELDS.every(([field]) => {
-          const selected = $(FILTER_ID_MAP[field]).value;
-          return selected === "all" || row[field] === selected;
-        });
-
-        return textMatch && fromMatch && toMatch && levelMatch;
-      });
-
-      filteredRecords.sort((a, b) => {
-        let av = a[sortField] ?? "";
-        let bv = b[sortField] ?? "";
-
-        if (sortField === "trade_date") {
-          av = new Date(`${av}T00:00:00`).getTime();
-          bv = new Date(`${bv}T00:00:00`).getTime();
-        } else {
-          av = String(av).toLowerCase();
-          bv = String(bv).toLowerCase();
-        }
-
-        if (av < bv) return sortDirection === "asc" ? -1 : 1;
-        if (av > bv) return sortDirection === "asc" ? 1 : -1;
-        return 0;
-      });
-
-      render();
-    }
-
-    function render() {
-      renderCards();
-      renderSummary();
-
-      const noResults = filteredRecords.length === 0;
-      $("emptyState").hidden = !noResults;
-    }
-
-    function imageMarkup(row) {
-      const url = normalizeUrl(row.image_url);
-
-      if (!url) {
-        return `
-          <div class="record-image-wrap">
-            <div class="record-no-image">No chart image added</div>
-          </div>
-        `;
-      }
-
-      return `
-        <div class="record-image-wrap">
-          <img
-            class="record-image"
-            src="${escapeHtml(url)}"
-            alt="Chart for ${escapeHtml(row.trade)}"
-            loading="lazy"
-            referrerpolicy="no-referrer"
-            onclick="openImage('${encodeURIComponent(url)}')"
-            onerror="this.parentElement.innerHTML='<div class=&quot;record-no-image&quot;>Image could not be displayed. Use the link in the details panel.</div>';"
-          />
-        </div>
-      `;
-    }
-
-    function renderCards() {
-      $("recordCardList").innerHTML = filteredRecords.map(row => {
-        const safeUrl = normalizeUrl(row.image_url);
-
-        return `
-          <article class="record-card">
-            ${imageMarkup(row)}
-
-            <div class="record-details">
-              <div class="record-heading">
-                <div>
-                  <h3>${escapeHtml(row.trade)}</h3>
-                  <div class="record-date">${escapeHtml(formatDate(row.trade_date))}</div>
-                </div>
-
-                <div class="record-actions">
-                  <button class="icon-btn" onclick="editRecord('${row.id}')">Edit</button>
-                  <button class="icon-btn delete" onclick="deleteRecord('${row.id}')">Delete</button>
-                </div>
-              </div>
-
-              <div class="record-levels">
-                ${LEVEL_FIELDS.map(([field, label]) => `
-                  <div class="record-level">
-                    <span>${label}</span>
-                    ${statePill(row[field])}
-                  </div>
-                `).join("")}
-              </div>
-
-              <div class="record-notes">
-                <strong>Notes</strong>
-                ${escapeHtml(row.notes || "No notes added.")}
-              </div>
-
-              ${safeUrl ? `
-                <a class="record-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">
-                  Open original chart image
-                </a>
-              ` : ""}
-            </div>
-          </article>
-        `;
-      }).join("");
-    }
-
-
-    function renderSummary() {
-      $("totalRecords").textContent = filteredRecords.length;
-      $("pdhCount").textContent = filteredRecords.filter(r => r.pdh === "pass").length;
-      $("pdlCount").textContent = filteredRecords.filter(r => r.pdl === "pass").length;
-      $("chartCount").textContent = filteredRecords.filter(r => normalizeUrl(r.image_url)).length;
-    }
-
-
-    function openImage(encodedUrl) {
-      const url = decodeURIComponent(encodedUrl);
-      $("dialogImage").src = url;
-      $("imageDialog").showModal();
-    }
-
-    function openSetup() {
-      $("setupSql").textContent = SETUP_SQL;
-      $("setupDialog").showModal();
-    }
-
-    async function copySetupSql() {
-      try {
-        await navigator.clipboard.writeText(SETUP_SQL);
-        toast("SQL copied.", "success");
-      } catch {
-        toast("Could not copy automatically. Select the SQL and copy it manually.", "error");
-      }
-    }
-
-    function attachEvents() {
-      $("tradeForm").addEventListener("submit", saveRecord);
-      $("cancelEditBtn").addEventListener("click", resetForm);
-
-      [
-        "searchFilter", "dateFrom", "dateTo",
-        ...Object.values(FILTER_ID_MAP)
-      ].forEach(id => {
-        $(id).addEventListener(id === "searchFilter" ? "input" : "change", applyFilters);
-      });
-
-      $("sortSelect").addEventListener("change", () => {
-        const [field, direction] = $("sortSelect").value.split("|");
-        sortField = field;
-        sortDirection = direction;
-        applyFilters();
-      });
-
-      $("imageDialog").addEventListener("click", event => {
-        if (event.target === $("imageDialog")) $("imageDialog").close();
-      });
-
-      $("setupDialog").addEventListener("click", event => {
-        if (event.target === $("setupDialog")) $("setupDialog").close();
-      });
-    }
-
-    async function init() {
-      initSelects();
-      resetForm();
-      attachEvents();
-      await loadRecords();
-    }
-
-    init();
+    const menuButton = document.getElementById('menuButton');
+    const mobileMenu = document.getElementById('mobileMenu');
+    menuButton?.addEventListener('click', () => {
+      const isOpen = !mobileMenu.classList.contains('hidden');
+      mobileMenu.classList.toggle('hidden');
+      menuButton.setAttribute('aria-expanded', String(!isOpen));
+    });
   </script>
 </body>
 </html>
