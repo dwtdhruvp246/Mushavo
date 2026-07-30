@@ -7221,23 +7221,27 @@
               name: country.name,
               code: country.code || '',
               currency_code: country.currency_code || '',
+              market_enabled_at: country.market_enabled_at || null,
               landlords: 0,
               revenue: 0
             })),
-            { id: 'unassigned', name: 'Unassigned', code: '', currency_code: '', landlords: 0, revenue: 0 }
+            { id: 'unassigned', name: 'Unassigned', code: '', currency_code: '', market_enabled_at: null, landlords: 0, revenue: 0 }
           ];
           const byId = new Map(rows.map(row => [row.id, row]));
           this.admin.landlords.forEach(row => {
             const countryId = row.country_id || 'unassigned';
-            if (!byId.has(countryId)) byId.set(countryId, { id: countryId, name: this.adminCountryName(countryId), code: '', currency_code: '', landlords: 0, revenue: 0 });
+            if (!byId.has(countryId)) byId.set(countryId, { id: countryId, name: this.adminCountryName(countryId), code: '', currency_code: '', market_enabled_at: null, landlords: 0, revenue: 0 });
             byId.get(countryId).landlords += 1;
           });
           this.admin.financePayments.forEach(payment => {
             const countryId = payment.country_id || 'unassigned';
-            if (!byId.has(countryId)) byId.set(countryId, { id: countryId, name: this.adminCountryName(countryId), code: '', currency_code: '', landlords: 0, revenue: 0 });
+            if (!byId.has(countryId)) byId.set(countryId, { id: countryId, name: this.adminCountryName(countryId), code: '', currency_code: '', market_enabled_at: null, landlords: 0, revenue: 0 });
             byId.get(countryId).revenue += Number(payment.amount_paid || 0);
           });
-          let values = Array.from(byId.values()).filter(row => row.landlords > 0);
+          let values = Array.from(byId.values()).filter(row => {
+            if (row.id === 'unassigned') return row.landlords > 0 || row.revenue > 0;
+            return row.market_enabled_at || row.landlords > 0 || row.revenue > 0;
+          });
           if (this.profile?.role === 'admin_staff') {
             const allowed = new Set(this.adminStaffCountryIds());
             values = values.filter(row => allowed.has(row.id));
@@ -7290,7 +7294,7 @@
           const [countriesResult, profilesResult, invitesResult, subscriptionsResult, internalNotesResult, adminTeamProfilesResult, adminTeamInvitesResult, adminTeamCountriesResult, staffProfilesResult, staffInvitesResult, staffPermissionsResult, tenantsResult, tenantLeasesResult, propertiesResult, platformPaymentsResult, managementCompaniesResult, managementInvitesResult, managementPermissionsResult, managementStaffResult, enquiriesResult, adminNotesResult, noteAssigneesResult, pricingPlansResult] = await Promise.all([
             supabaseClient
               .from('countries')
-              .select('id, name, code, currency_code, created_at')
+              .select('id, name, code, currency_code, market_enabled_at, market_enabled_by, created_at')
               .is('archived_at', null)
               .order('name', { ascending: true }),
             supabaseClient
@@ -8850,8 +8854,14 @@
         },
 
         adminCountryDropdownOptions() {
+          const activeCountryIds = new Set(
+            this.adminCountryBreakdown()
+              .filter(country => country.id !== 'unassigned')
+              .map(country => country.id)
+          );
           return [...(this.admin?.countries || [])]
             .filter(country => country?.id && country.name)
+            .filter(country => !activeCountryIds.has(country.id))
             .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
         },
 
@@ -9282,7 +9292,9 @@
           const payload = {
             name: this.admin.countryForm.name,
             code: this.admin.countryForm.code ? this.admin.countryForm.code.toUpperCase() : null,
-            currency_code: this.admin.countryForm.currencyCode ? this.admin.countryForm.currencyCode.toUpperCase() : null
+            currency_code: this.admin.countryForm.currencyCode ? this.admin.countryForm.currencyCode.toUpperCase() : null,
+            market_enabled_at: selectedCountry.market_enabled_at || new Date().toISOString(),
+            market_enabled_by: selectedCountry.market_enabled_by || this.profile?.id || null
           };
 
           const { data, error } = await supabaseClient
@@ -9298,7 +9310,7 @@
             return;
           }
 
-          this.admin.message = 'Country selected.';
+          this.admin.message = 'Country added.';
           this.admin.selectedCountryId = data.id;
           this.closeAdminModal();
           await this.loadSuperAdminData();
