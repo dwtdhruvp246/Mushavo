@@ -2886,7 +2886,7 @@
                             <span x-show="canViewUnits()" class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700" x-text="`${unitCountForProperty(property.id)} units`"></span>
                           </div>
                           <div class="mt-5 flex flex-wrap gap-2">
-                            <button x-show="canViewUnits()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openPropertyUnits(property.id)">Open Units</button>
+                            <button x-show="canViewUnits()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="togglePropertyUnits(property.id)" x-text="propertyUnit.selectedPropertyId === property.id ? 'Close Units' : 'Open Units'"></button>
                             <button x-show="canEditProperties()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="startEditProperty(property)">Edit</button>
                             <button x-show="canArchiveProperties()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100" type="button" @click="deleteProperty(property)">Archive</button>
                           </div>
@@ -2901,7 +2901,6 @@
                         <p class="mt-1 text-sm text-slate-500">Manage only the units linked to this property.</p>
                       </div>
                       <div class="flex flex-wrap gap-2">
-                        <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="closePropertyUnits">Close Units</button>
                         <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="refreshCurrentPage">Refresh</button>
                       </div>
                     </div>
@@ -11852,6 +11851,14 @@
             this.propertyUnit.detailMode = '';
           }
           if (this.currentPage !== 'properties') this.navigate('properties');
+        },
+
+        togglePropertyUnits(propertyId) {
+          if (this.propertyUnit.selectedPropertyId === propertyId) {
+            this.closePropertyUnits();
+            return;
+          }
+          this.openPropertyUnits(propertyId);
         },
 
         closePropertyUnits() {
