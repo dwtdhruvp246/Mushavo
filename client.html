@@ -3581,8 +3581,163 @@
                       </label>
                       <button class="self-end rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="submit" :disabled="tenantLease.saving || !tenantLease.selectedLeaseDocumentFile">Save PDF</button>
                     </form>
+                    <div class="mt-6 grid gap-5 xl:grid-cols-2">
+                      <section class="overflow-hidden rounded-lg border border-slate-200">
+                        <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h3 class="text-sm font-semibold text-slate-900">Lease Lifecycle</h3>
+                            <p class="mt-1 text-xs text-slate-500">Generation, move-in, renewal, expiry, and move-out tasks.</p>
+                          </div>
+                          <button x-show="canEditLeases()" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60" type="button" @click="createLeaseLifecycleChecklist" :disabled="tenantLease.saving">Create Checklist</button>
+                        </div>
+                        <div class="grid gap-3 p-4 md:grid-cols-2">
+                          <template x-for="category in leaseLifecycleCategories()" :key="category.key">
+                            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                              <h4 class="text-xs font-bold uppercase tracking-wide text-slate-500" x-text="category.label"></h4>
+                              <template x-if="selectedLeaseLifecycleItemsFor(category.key).length === 0"><p class="mt-3 text-sm text-slate-500">No checklist items yet.</p></template>
+                              <div class="mt-3 space-y-2">
+                                <template x-for="item in selectedLeaseLifecycleItemsFor(category.key)" :key="item.id">
+                                  <label class="flex min-w-0 items-start gap-2 rounded-lg bg-slate-50 p-2 text-sm">
+                                    <input class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500 disabled:opacity-50" type="checkbox" :checked="item.is_done" :disabled="!canEditLeases() || tenantLease.saving" @change="toggleLeaseLifecycleItem(item)">
+                                    <span class="min-w-0">
+                                      <span class="block font-semibold text-slate-800" x-text="item.title"></span>
+                                      <span x-show="item.due_date" class="mt-0.5 block text-xs text-slate-500" x-text="'Due ' + formatDate(item.due_date)"></span>
+                                    </span>
+                                  </label>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </section>
+
+                      <section class="overflow-hidden rounded-lg border border-slate-200">
+                        <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                          <h3 class="text-sm font-semibold text-slate-900">Tenant Documents</h3>
+                          <p class="mt-1 text-xs text-slate-500">Identity, income proof, move-in, move-out, and reference documents.</p>
+                        </div>
+                        <form x-show="canUploadLeaseDocuments()" class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2" @submit.prevent="uploadTenantDocumentForSelectedLease">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Document type</span>
+                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="tenantLease.tenantDocumentForm.documentType">
+                              <option value="identity">Identity</option>
+                              <option value="proof_of_income">Proof of income</option>
+                              <option value="lease_support">Lease support</option>
+                              <option value="move_in">Move-in</option>
+                              <option value="move_out">Move-out</option>
+                              <option value="reference">Reference</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Title</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="tenantLease.tenantDocumentForm.title" placeholder="e.g. Tenant ID copy">
+                          </label>
+                          <label class="block sm:col-span-2">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">File</span>
+                            <input x-ref="tenantDocumentInput" class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" @change="handleTenantDocumentSelection($event)">
+                            <span class="mt-1 block text-xs text-slate-500">PDF, image, DOC, or DOCX. Max 10 MB.</span>
+                          </label>
+                          <label class="block sm:col-span-2">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Notes</span>
+                            <textarea class="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="tenantLease.tenantDocumentForm.notes"></textarea>
+                          </label>
+                          <button class="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 sm:col-span-2" type="submit" :disabled="tenantLease.saving || !tenantLease.selectedTenantDocumentFile">Save Document</button>
+                        </form>
+                        <div class="divide-y divide-slate-200">
+                          <template x-if="tenantLease.selectedLeaseDocuments.length === 0"><p class="px-4 py-6 text-center text-sm text-slate-500">No tenant documents yet.</p></template>
+                          <template x-for="document in tenantLease.selectedLeaseDocuments" :key="document.id">
+                            <div class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div class="min-w-0">
+                                <p class="font-semibold text-slate-900" x-text="document.title || tenantDocumentTypeLabel(document.document_type)"></p>
+                                <p class="text-xs text-slate-500" x-text="`${tenantDocumentTypeLabel(document.document_type)} - ${formatDate(document.created_at)}`"></p>
+                                <p x-show="document.notes" class="mt-1 text-sm text-slate-600" x-text="document.notes"></p>
+                              </div>
+                              <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openTenantDocument(document)">Download</button>
+                            </div>
+                          </template>
+                        </div>
+                      </section>
+                    </div>
+
+                    <div class="mt-6 grid gap-5 xl:grid-cols-2">
+                      <section class="rounded-lg border border-slate-200 p-4">
+                        <div class="mb-4">
+                          <h3 class="text-sm font-semibold text-slate-900">Deposit Settlement</h3>
+                          <p class="mt-1 text-xs text-slate-500">Track refundable deposit deductions and settlement status.</p>
+                        </div>
+                        <form class="grid gap-3" @submit.prevent="saveDepositSettlement">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Status</span>
+                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="tenantLease.depositSettlementForm.status" :disabled="!canEditLeases()">
+                              <option value="not_started">Not started</option>
+                              <option value="draft">Draft</option>
+                              <option value="tenant_review">Tenant review</option>
+                              <option value="approved">Approved</option>
+                              <option value="paid">Paid</option>
+                              <option value="disputed">Disputed</option>
+                            </select>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Deductions</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="tenantLease.depositSettlementForm.deductionsAmount" :disabled="!canEditLeases()">
+                          </label>
+                          <div class="rounded-lg bg-slate-50 p-3 text-sm">
+                            <span class="text-slate-500">Estimated refund</span>
+                            <span class="ml-2 font-bold text-slate-900" x-text="formatCurrency(selectedLeaseDepositRefund())"></span>
+                          </div>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Landlord notes</span>
+                            <textarea class="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="tenantLease.depositSettlementForm.notes" :disabled="!canEditLeases()"></textarea>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Tenant notes</span>
+                            <textarea class="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="tenantLease.depositSettlementForm.tenantNotes" :disabled="!canEditLeases()"></textarea>
+                          </label>
+                          <button x-show="canEditLeases()" class="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="submit" :disabled="tenantLease.saving">Save Settlement</button>
+                        </form>
+                      </section>
+
+                      <section class="overflow-hidden rounded-lg border border-slate-200">
+                        <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                          <h3 class="text-sm font-semibold text-slate-900">Tenant Reference Requests</h3>
+                          <p class="mt-1 text-xs text-slate-500">Ask for tenant consent before sharing rental references.</p>
+                        </div>
+                        <form x-show="canEditLeases()" class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2" @submit.prevent="createTenantReferenceRequest">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Requester name</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="tenantLease.referenceRequestForm.requesterName" placeholder="New landlord / agent">
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Requester email</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="email" x-model.trim="tenantLease.referenceRequestForm.requesterEmail">
+                          </label>
+                          <label class="block sm:col-span-2">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Purpose</span>
+                            <textarea class="min-h-20 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="tenantLease.referenceRequestForm.purpose" placeholder="Why the reference is needed"></textarea>
+                          </label>
+                          <button class="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60 sm:col-span-2" type="submit" :disabled="tenantLease.saving">Request Tenant Consent</button>
+                        </form>
+                        <div class="divide-y divide-slate-200">
+                          <template x-if="tenantLease.selectedLeaseReferenceRequests.length === 0"><p class="px-4 py-6 text-center text-sm text-slate-500">No reference requests yet.</p></template>
+                          <template x-for="request in tenantLease.selectedLeaseReferenceRequests" :key="request.id">
+                            <div class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div class="min-w-0">
+                                <p class="font-semibold text-slate-900" x-text="request.requester_name || '-'"></p>
+                                <p class="text-xs text-slate-500" x-text="`${request.requester_email || '-'} - ${formatDate(request.requested_at)}`"></p>
+                                <p x-show="request.purpose" class="mt-1 text-sm text-slate-600" x-text="request.purpose"></p>
+                              </div>
+                              <span class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold" :class="referenceConsentBadgeClass(request.consent_status)" x-text="titleCase(request.consent_status || 'pending')"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </section>
+                    </div>
                     <section class="mt-6 overflow-hidden rounded-lg border border-slate-200">
-                      <div class="border-b border-slate-200 bg-slate-50 px-4 py-3"><h3 class="text-sm font-semibold text-slate-900">Payment History</h3></div>
+                      <div class="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 class="text-sm font-semibold text-slate-900">Payment History</h3>
+                        <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="downloadTenantRentalHistoryReport">Download Rental History</button>
+                      </div>
                       <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-slate-200 text-left text-[13px]">
                           <thead class="bg-white text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-4 py-3">Receipt</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Date</th><th class="px-4 py-3">Method</th><th class="px-4 py-3">Notes</th><th class="px-4 py-3">Actions</th></tr></thead>
@@ -5332,6 +5487,11 @@
                           <button type="button" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60" @click.stop="respondTenantLinkRequest(notification, false)" :disabled="notifications.saving">Reject</button>
                         </span>
                         <span x-show="notification.type === 'tenant_link_request' && tenantRequestStatus(notification) !== 'pending'" class="mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-semibold" :class="tenantRequestStatus(notification) === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" x-text="tenantRequestStatus(notification) === 'accepted' ? 'Accepted' : 'Rejected'"></span>
+                        <span x-show="notification.type === 'tenant_reference_request' && tenantReferenceStatus(notification) === 'pending'" class="mt-3 flex flex-wrap gap-2">
+                          <button type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" @click.stop="respondTenantReferenceRequest(notification, true)" :disabled="notifications.saving">Approve Reference</button>
+                          <button type="button" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60" @click.stop="respondTenantReferenceRequest(notification, false)" :disabled="notifications.saving">Reject</button>
+                        </span>
+                        <span x-show="notification.type === 'tenant_reference_request' && tenantReferenceStatus(notification) !== 'pending'" class="mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-semibold" :class="tenantReferenceStatus(notification) === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" x-text="tenantReferenceStatus(notification) === 'approved' ? 'Approved' : 'Rejected'"></span>
                         <span class="mt-1 block text-xs text-slate-500" x-text="formatDateTime(notification.created_at)"></span>
                       </span>
                     </div>
@@ -5435,6 +5595,8 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const LEASE_DOCUMENT_BUCKET = 'lease-documents';
     const MAX_LEASE_DOCUMENT_SIZE = 20 * 1024 * 1024;
+    const TENANT_DOCUMENT_BUCKET = 'tenant-documents';
+    const MAX_TENANT_DOCUMENT_SIZE = 10 * 1024 * 1024;
     const PAYMENT_PROOF_BUCKET = 'payment-proofs';
     const MAINTENANCE_PHOTO_BUCKET = 'maintenance-photos';
     const MAX_IMAGE_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -6095,7 +6257,28 @@
           },
           selectedLease: null,
           selectedLeasePayments: [],
+          selectedLeaseLifecycleItems: [],
+          selectedLeaseDocuments: [],
+          selectedLeaseDepositSettlement: null,
+          selectedLeaseReferenceRequests: [],
           selectedLeaseDocumentFile: null,
+          selectedTenantDocumentFile: null,
+          tenantDocumentForm: {
+            documentType: 'identity',
+            title: '',
+            notes: ''
+          },
+          depositSettlementForm: {
+            status: 'not_started',
+            deductionsAmount: 0,
+            notes: '',
+            tenantNotes: ''
+          },
+          referenceRequestForm: {
+            requesterName: '',
+            requesterEmail: '',
+            purpose: ''
+          },
           lookup: {
             email: '',
             result: null
@@ -15948,6 +16131,413 @@
           this.tenantLease.saving = false;
         },
 
+        resetSelectedLeaseLifecycleState() {
+          this.tenantLease.selectedLeasePayments = [];
+          this.tenantLease.selectedLeaseLifecycleItems = [];
+          this.tenantLease.selectedLeaseDocuments = [];
+          this.tenantLease.selectedLeaseDepositSettlement = null;
+          this.tenantLease.selectedLeaseReferenceRequests = [];
+          this.tenantLease.selectedLeaseDocumentFile = null;
+          this.tenantLease.selectedTenantDocumentFile = null;
+          this.tenantLease.tenantDocumentForm = { documentType: 'identity', title: '', notes: '' };
+          this.tenantLease.depositSettlementForm = { status: 'not_started', deductionsAmount: 0, notes: '', tenantNotes: '' };
+          this.tenantLease.referenceRequestForm = { requesterName: '', requesterEmail: '', purpose: '' };
+        },
+
+        leaseLifecycleCategories() {
+          return [
+            { key: 'lease_generation', label: 'Lease Generation' },
+            { key: 'move_in', label: 'Move-in' },
+            { key: 'renewal', label: 'Renewal' },
+            { key: 'expiry', label: 'Expiry' },
+            { key: 'move_out', label: 'Move-out' }
+          ];
+        },
+
+        selectedLeaseLifecycleItemsFor(category) {
+          return (this.tenantLease.selectedLeaseLifecycleItems || [])
+            .filter(item => item.category === category)
+            .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.title || '').localeCompare(String(b.title || '')));
+        },
+
+        defaultLeaseLifecycleItems(lease) {
+          const isoDate = value => value ? new Date(value).toISOString().slice(0, 10) : null;
+          const moveDate = (value, days) => {
+            if (!value) return null;
+            const date = new Date(value);
+            date.setDate(date.getDate() + days);
+            return isoDate(date);
+          };
+          const start = lease?.start_date || null;
+          const end = lease?.end_date || null;
+          return [
+            ['lease_generation', 'Verify tenant details', start],
+            ['lease_generation', 'Upload signed lease agreement', start],
+            ['lease_generation', 'Confirm deposit terms', start],
+            ['move_in', 'Complete move-in inspection', start],
+            ['move_in', 'Hand over keys', start],
+            ['move_in', 'Record meter readings', start],
+            ['renewal', 'Review renewal options', moveDate(end, -30)],
+            ['expiry', 'Send lease expiry reminder', moveDate(end, -14)],
+            ['move_out', 'Complete move-out inspection', end],
+            ['move_out', 'Settle refundable deposit', end],
+            ['move_out', 'Close tenant access after move-out', end]
+          ].map(([category, title, dueDate], index) => ({
+            lease_id: lease.id,
+            landlord_id: lease.landlord_id,
+            tenant_id: lease.tenant_id,
+            category,
+            title,
+            due_date: dueDate,
+            is_done: false,
+            sort_order: index + 1
+          }));
+        },
+
+        async loadSelectedLeaseLifecycleData() {
+          const lease = this.tenantLease.selectedLease;
+          if (!lease?.id) return;
+
+          const [itemsResult, documentsResult, settlementResult, referencesResult] = await Promise.all([
+            supabaseClient
+              .from('lease_lifecycle_items')
+              .select('id, lease_id, landlord_id, tenant_id, category, title, due_date, is_done, completed_at, completed_by, notes, sort_order, created_at')
+              .eq('lease_id', lease.id)
+              .order('category', { ascending: true })
+              .order('sort_order', { ascending: true }),
+            supabaseClient
+              .from('tenant_documents')
+              .select('id, lease_id, landlord_id, tenant_id, document_type, title, file_path, file_name, file_size, notes, uploaded_by, created_at')
+              .eq('lease_id', lease.id)
+              .order('created_at', { ascending: false }),
+            supabaseClient
+              .from('deposit_settlements')
+              .select('id, lease_id, landlord_id, tenant_id, status, deposit_amount, deductions_amount, refund_amount, notes, tenant_notes, settled_at, created_at, updated_at')
+              .eq('lease_id', lease.id)
+              .maybeSingle(),
+            supabaseClient
+              .from('tenant_reference_requests')
+              .select('id, lease_id, landlord_id, tenant_id, requester_name, requester_email, purpose, consent_status, requested_at, responded_at, created_at')
+              .eq('lease_id', lease.id)
+              .order('requested_at', { ascending: false })
+          ]);
+
+          const error = itemsResult.error || documentsResult.error || settlementResult.error || referencesResult.error;
+          if (error) {
+            this.tenantLease.error = error.message;
+            return;
+          }
+
+          this.tenantLease.selectedLeaseLifecycleItems = itemsResult.data || [];
+          this.tenantLease.selectedLeaseDocuments = documentsResult.data || [];
+          this.tenantLease.selectedLeaseDepositSettlement = settlementResult.data || null;
+          this.tenantLease.selectedLeaseReferenceRequests = referencesResult.data || [];
+          this.syncDepositSettlementForm();
+        },
+
+        syncDepositSettlementForm() {
+          const settlement = this.tenantLease.selectedLeaseDepositSettlement;
+          this.tenantLease.depositSettlementForm = {
+            status: settlement?.status || 'not_started',
+            deductionsAmount: Number(settlement?.deductions_amount || 0),
+            notes: settlement?.notes || '',
+            tenantNotes: settlement?.tenant_notes || ''
+          };
+        },
+
+        selectedLeaseDepositRefund() {
+          const deposit = Number(this.tenantLease.selectedLease?.deposit_amount || 0);
+          const deductions = Number(this.tenantLease.depositSettlementForm?.deductionsAmount || 0);
+          return Math.max(0, deposit - deductions);
+        },
+
+        async createLeaseLifecycleChecklist() {
+          const lease = this.tenantLease.selectedLease;
+          if (!lease?.id || !this.canEditLeases()) return;
+          if ((this.tenantLease.selectedLeaseLifecycleItems || []).length) {
+            this.tenantLease.error = 'Checklist already exists for this lease.';
+            return;
+          }
+
+          this.tenantLease.error = '';
+          this.tenantLease.saving = true;
+          const { error } = await supabaseClient
+            .from('lease_lifecycle_items')
+            .insert(this.defaultLeaseLifecycleItems(lease));
+
+          if (error) {
+            this.tenantLease.error = this.friendlyDatabaseError(error, 'Checklist could not be created.');
+          } else {
+            await this.loadSelectedLeaseLifecycleData();
+            this.successMessage = 'Lease checklist created.';
+          }
+          this.tenantLease.saving = false;
+        },
+
+        async toggleLeaseLifecycleItem(item) {
+          if (!item?.id || !this.canEditLeases()) return;
+          this.tenantLease.error = '';
+          this.tenantLease.saving = true;
+          const nextDone = !item.is_done;
+          const { error } = await supabaseClient
+            .from('lease_lifecycle_items')
+            .update({
+              is_done: nextDone,
+              completed_at: nextDone ? new Date().toISOString() : null,
+              completed_by: nextDone ? this.profile?.id : null
+            })
+            .eq('id', item.id);
+
+          if (error) {
+            this.tenantLease.error = this.friendlyDatabaseError(error, 'Checklist item could not be updated.');
+          } else {
+            item.is_done = nextDone;
+            item.completed_at = nextDone ? new Date().toISOString() : null;
+            item.completed_by = nextDone ? this.profile?.id : null;
+          }
+          this.tenantLease.saving = false;
+        },
+
+        tenantDocumentTypeLabel(type) {
+          const labels = {
+            identity: 'Identity',
+            proof_of_income: 'Proof of income',
+            lease_support: 'Lease support',
+            move_in: 'Move-in',
+            move_out: 'Move-out',
+            reference: 'Reference',
+            other: 'Other'
+          };
+          return labels[type] || this.titleCase(type || 'Document');
+        },
+
+        validateTenantDocumentFile(file) {
+          if (!file) return;
+          const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+          const allowedExtension = /\.(pdf|jpe?g|png|webp|docx?)$/i.test(file.name);
+          if (!allowedTypes.includes(file.type) && !allowedExtension) {
+            throw new Error('Tenant document must be a PDF, image, DOC, or DOCX file.');
+          }
+          if (file.size > MAX_TENANT_DOCUMENT_SIZE) throw new Error('Tenant document must be 10 MB or smaller.');
+        },
+
+        sanitizeTenantDocumentName(fileName) {
+          return String(fileName || 'tenant-document')
+            .replace(/[^a-z0-9._-]+/gi, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase() || 'tenant-document';
+        },
+
+        handleTenantDocumentSelection(event) {
+          const file = event.target.files?.[0] || null;
+          this.tenantLease.error = '';
+          try {
+            if (file) this.validateTenantDocumentFile(file);
+            this.tenantLease.selectedTenantDocumentFile = file;
+          } catch (error) {
+            this.tenantLease.selectedTenantDocumentFile = null;
+            event.target.value = '';
+            this.tenantLease.error = error.message;
+          }
+        },
+
+        tenantDocumentContentType(file) {
+          if (file?.type) return file.type;
+          const name = String(file?.name || '').toLowerCase();
+          if (name.endsWith('.pdf')) return 'application/pdf';
+          if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+          if (name.endsWith('.png')) return 'image/png';
+          if (name.endsWith('.webp')) return 'image/webp';
+          if (name.endsWith('.doc')) return 'application/msword';
+          if (name.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          return 'application/octet-stream';
+        },
+
+        async uploadTenantDocumentForSelectedLease() {
+          const lease = this.tenantLease.selectedLease;
+          const file = this.tenantLease.selectedTenantDocumentFile;
+          if (!lease?.id || !file) return;
+          if (!this.canUploadLeaseDocuments()) {
+            this.tenantLease.error = 'You do not have permission to upload tenant documents.';
+            return;
+          }
+
+          this.tenantLease.error = '';
+          this.tenantLease.saving = true;
+          try {
+            this.validateTenantDocumentFile(file);
+            const landlordId = lease.landlord_id || this.profile?.landlord_id || this.profile?.id;
+            const objectPath = `${landlordId}/${lease.id}/${Date.now()}-${this.generateSecureToken().slice(0, 16)}-${this.sanitizeTenantDocumentName(file.name)}`;
+            const { error: uploadError } = await supabaseClient.storage
+              .from(TENANT_DOCUMENT_BUCKET)
+              .upload(objectPath, file, { cacheControl: '3600', upsert: false, contentType: this.tenantDocumentContentType(file) });
+            if (uploadError) throw uploadError;
+
+            const payload = {
+              lease_id: lease.id,
+              landlord_id: lease.landlord_id,
+              tenant_id: lease.tenant_id,
+              document_type: this.tenantLease.tenantDocumentForm.documentType || 'other',
+              title: this.tenantLease.tenantDocumentForm.title || file.name,
+              file_path: objectPath,
+              file_name: file.name,
+              file_size: file.size,
+              notes: this.tenantLease.tenantDocumentForm.notes || null,
+              uploaded_by: this.profile?.id || null
+            };
+            const { error: insertError } = await supabaseClient.from('tenant_documents').insert(payload);
+            if (insertError) {
+              await supabaseClient.storage.from(TENANT_DOCUMENT_BUCKET).remove([objectPath]);
+              throw insertError;
+            }
+
+            this.tenantLease.selectedTenantDocumentFile = null;
+            this.tenantLease.tenantDocumentForm = { documentType: 'identity', title: '', notes: '' };
+            if (this.$refs.tenantDocumentInput) this.$refs.tenantDocumentInput.value = '';
+            await this.loadSelectedLeaseLifecycleData();
+            this.successMessage = 'Tenant document saved.';
+          } catch (error) {
+            this.tenantLease.error = this.friendlyDatabaseError(error, 'Tenant document could not be saved.');
+          }
+          this.tenantLease.saving = false;
+        },
+
+        async openTenantDocument(document) {
+          if (!document?.file_path) return;
+          const documentWindow = window.open('', '_blank');
+          if (documentWindow) documentWindow.opener = null;
+          const { data, error } = await supabaseClient.storage
+            .from(TENANT_DOCUMENT_BUCKET)
+            .createSignedUrl(document.file_path, 300, { download: document.file_name || 'tenant-document' });
+
+          if (error) {
+            if (documentWindow) documentWindow.close();
+            this.tenantLease.error = error.message;
+            return;
+          }
+          if (documentWindow) documentWindow.location.href = data.signedUrl;
+          else window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+        },
+
+        async saveDepositSettlement() {
+          const lease = this.tenantLease.selectedLease;
+          if (!lease?.id || !this.canEditLeases()) return;
+          this.tenantLease.error = '';
+          this.tenantLease.saving = true;
+
+          const payload = {
+            lease_id: lease.id,
+            landlord_id: lease.landlord_id,
+            tenant_id: lease.tenant_id,
+            status: this.tenantLease.depositSettlementForm.status || 'not_started',
+            deposit_amount: Number(lease.deposit_amount || 0),
+            deductions_amount: Number(this.tenantLease.depositSettlementForm.deductionsAmount || 0),
+            refund_amount: this.selectedLeaseDepositRefund(),
+            notes: this.tenantLease.depositSettlementForm.notes || null,
+            tenant_notes: this.tenantLease.depositSettlementForm.tenantNotes || null,
+            settled_at: ['approved', 'paid'].includes(this.tenantLease.depositSettlementForm.status) ? new Date().toISOString() : null
+          };
+          const { data, error } = await supabaseClient
+            .from('deposit_settlements')
+            .upsert(payload, { onConflict: 'lease_id' })
+            .select('id, lease_id, landlord_id, tenant_id, status, deposit_amount, deductions_amount, refund_amount, notes, tenant_notes, settled_at, created_at, updated_at')
+            .single();
+
+          if (error) {
+            this.tenantLease.error = this.friendlyDatabaseError(error, 'Deposit settlement could not be saved.');
+          } else {
+            this.tenantLease.selectedLeaseDepositSettlement = data;
+            this.syncDepositSettlementForm();
+            this.successMessage = 'Deposit settlement saved.';
+          }
+          this.tenantLease.saving = false;
+        },
+
+        async createTenantReferenceRequest() {
+          const lease = this.tenantLease.selectedLease;
+          const form = this.tenantLease.referenceRequestForm;
+          if (!lease?.id || !this.canEditLeases()) return;
+          if (!form.requesterName || !form.requesterEmail || !form.purpose) {
+            this.tenantLease.error = 'Requester name, email, and purpose are required.';
+            return;
+          }
+
+          this.tenantLease.error = '';
+          this.tenantLease.saving = true;
+          const { error } = await supabaseClient.rpc('create_tenant_reference_request', {
+            p_lease_id: lease.id,
+            p_requester_name: form.requesterName,
+            p_requester_email: form.requesterEmail,
+            p_purpose: form.purpose
+          });
+
+          if (error) {
+            this.tenantLease.error = this.friendlyDatabaseError(error, 'Reference request could not be created.');
+          } else {
+            this.tenantLease.referenceRequestForm = { requesterName: '', requesterEmail: '', purpose: '' };
+            await this.loadSelectedLeaseLifecycleData();
+            this.successMessage = 'Tenant reference consent request sent.';
+          }
+          this.tenantLease.saving = false;
+        },
+
+        referenceConsentBadgeClass(status) {
+          const value = String(status || 'pending').toLowerCase();
+          if (value === 'approved') return 'bg-emerald-100 text-emerald-700';
+          if (value === 'rejected' || value === 'withdrawn') return 'bg-red-100 text-red-700';
+          return 'bg-amber-100 text-amber-700';
+        },
+
+        downloadTenantRentalHistoryReport() {
+          const lease = this.tenantLease.selectedLease;
+          if (!lease) return;
+          const JsPdf = window.jspdf?.jsPDF || window.jsPDF;
+          if (!JsPdf) {
+            this.tenantLease.error = 'PDF generator is not available.';
+            return;
+          }
+
+          const doc = new JsPdf();
+          const tenantName = lease.tenant?.full_name || 'Tenant';
+          const property = this.leasePropertyLabel(lease);
+          const unit = this.leaseUnitLabel(lease);
+          const payments = this.tenantLease.selectedLeasePayments || [];
+          const rentPayments = payments.filter(payment => String(payment.payment_purpose || 'rent') === 'rent');
+          const totalPaid = rentPayments.reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+          let y = 18;
+          doc.setFontSize(18);
+          doc.text('Tenant Rental History', 14, y);
+          y += 10;
+          doc.setFontSize(11);
+          [
+            ['Tenant', tenantName],
+            ['Property', property],
+            ['Unit', unit],
+            ['Lease period', `${this.formatDate(lease.start_date)} - ${this.formatDate(lease.end_date)}`],
+            ['Monthly rent', this.formatCurrency(lease.monthly_rent)],
+            ['Verified rent paid', this.formatCurrency(totalPaid)]
+          ].forEach(([label, value]) => {
+            doc.text(`${label}: ${value || '-'}`, 14, y);
+            y += 7;
+          });
+          y += 4;
+          doc.setFontSize(13);
+          doc.text('Payments', 14, y);
+          y += 8;
+          doc.setFontSize(9);
+          payments.forEach(payment => {
+            if (y > 280) {
+              doc.addPage();
+              y = 18;
+            }
+            doc.text(`${this.formatDate(payment.payment_date)} | ${this.paymentPeriodLabel(payment)} | ${this.formatCurrency(payment.amount_paid)} | ${this.titleCase(payment.payment_method || '')}`, 14, y);
+            y += 6;
+          });
+          if (!payments.length) doc.text('No payments recorded.', 14, y);
+          doc.save(`rental-history-${tenantName.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'tenant'}.pdf`);
+        },
+
         imageFormTarget(target) {
           const targets = {
             tenantPayment: { form: this.tenant.paymentForm, errorScope: 'tenant', inputRef: 'tenantPaymentProofInput' },
@@ -16278,9 +16868,12 @@
         },
 
         async viewLease(lease) {
+          this.tenantLease.error = '';
+          this.resetSelectedLeaseLifecycleState();
           this.tenantLease.selectedLease = lease;
           this.tenantLease.selectedLeaseDocumentFile = null;
           if (this.$refs.selectedLeaseDocumentInput) this.$refs.selectedLeaseDocumentInput.value = '';
+          if (this.$refs.tenantDocumentInput) this.$refs.tenantDocumentInput.value = '';
           const { data, error } = await supabaseClient
             .from('payments')
             .select('id, lease_id, amount_paid, payment_date, payment_method, rent_period_start, rent_period_end, rent_period_label, payment_purpose, purpose_description, is_historical, notes, receipt_number, created_at')
@@ -16293,6 +16886,7 @@
           }
 
           this.tenantLease.selectedLeasePayments = data || [];
+          await this.loadSelectedLeaseLifecycleData();
         },
 
         async loadMyAccountData() {
@@ -16573,6 +17167,38 @@
           return ['accepted', 'rejected'].includes(status) ? status : 'pending';
         },
 
+        async respondTenantReferenceRequest(notification, accept) {
+          if (!notification?.related_id) return;
+
+          this.notifications.error = '';
+          this.notifications.saving = true;
+
+          const { error } = await supabaseClient.rpc('respond_tenant_reference_request', {
+            p_request_id: notification.related_id,
+            p_accept: Boolean(accept)
+          });
+
+          if (error) {
+            this.notifications.error = this.friendlyDatabaseError(error, 'This reference request could not be updated. Please refresh and try again.');
+            this.notifications.saving = false;
+            return;
+          }
+
+          notification.response_status = accept ? 'approved' : 'rejected';
+          notification.is_read = true;
+          this.notifications.items = this.notifications.items.map(item => item.id === notification.id ? { ...item, response_status: notification.response_status, is_read: true } : item);
+          await this.loadUnreadCount(this.profile.id);
+          this.successMessage = accept ? 'Reference consent approved.' : 'Reference request rejected.';
+          await this.loadNotifications();
+          this.notifications.saving = false;
+        },
+
+        tenantReferenceStatus(notification) {
+          if (notification?.type !== 'tenant_reference_request') return '';
+          const status = String(notification?.response_status || 'pending').toLowerCase();
+          return ['approved', 'rejected'].includes(status) ? status : 'pending';
+        },
+
         async openNotification(notification) {
           if (!notification) return;
 
@@ -16603,6 +17229,7 @@
               payment_approved: 'tenant-payments',
               payment_rejected: 'tenant-payments',
               maintenance_updated: 'tenant-maintenance',
+              tenant_reference_request: 'tenant-notifications',
               rent_due: 'tenant-home',
               lease_expiring: 'tenant-home'
             };
@@ -16640,6 +17267,7 @@
             maintenance_updated: 'Maintenance Updated',
             rent_due: 'Rent Due',
             tenant_link_request: 'Tenant Link Request',
+            tenant_reference_request: 'Reference Consent Request',
             staff_landlord_request: 'IPM Access Request',
             management_landlord_request: 'PMC Access Request'
           };
