@@ -2242,7 +2242,7 @@
                       <td class="px-4 py-3 text-slate-700" x-text="tenantRow.country_name || adminCountryName(tenantRow.country_id)"></td>
                       <td class="px-4 py-3"><p class="font-semibold text-slate-900" x-text="tenantRow.landlord?.full_name || '-'"></p><p class="mt-1 text-xs text-slate-500" x-text="tenantRow.landlord?.email || ''"></p></td>
                       <td class="px-4 py-3 text-slate-700"><p x-text="tenantRow.property_name || '-'"></p><p class="mt-1 text-xs text-slate-500" x-text="tenantRow.unit_number ? `Unit ${tenantRow.unit_number}` : '-'"></p></td>
-                      <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="tenantLinkAccepted(tenantRow) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'" x-text="tenantLinkAccepted(tenantRow) ? 'Accepted' : 'Pending'"></span></td>
+                      <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="tenantLinkStatus(tenantRow) === 'accepted' ? 'bg-emerald-100 text-emerald-700' : tenantLinkStatus(tenantRow) === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'" x-text="tenantLinkStatus(tenantRow) === 'accepted' ? 'Accepted' : tenantLinkStatus(tenantRow) === 'pending' ? 'Pending' : 'Rejected'"></span></td>
                       <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="tenantRow.archived_at ? 'bg-slate-100 text-slate-700' : 'bg-emerald-100 text-emerald-700'" x-text="tenantRow.archived_at ? 'Archived' : 'Active'"></span></td>
                       <td class="px-4 py-3 text-slate-700" x-text="formatDate(tenantRow.created_at)"></td>
                       <td class="px-4 py-3">
@@ -6987,8 +6987,8 @@
           const status = this.admin.filters.tenantStatus || '';
           if (status === 'active') rows = rows.filter(row => !row.archived_at);
           if (status === 'archived') rows = rows.filter(row => row.archived_at);
-          if (status === 'accepted') rows = rows.filter(row => this.tenantLinkAccepted(row));
-          if (status === 'pending') rows = rows.filter(row => !this.tenantLinkAccepted(row));
+          if (status === 'accepted') rows = rows.filter(row => this.tenantLinkStatus(row) === 'accepted');
+          if (status === 'pending') rows = rows.filter(row => this.tenantLinkStatus(row) === 'pending');
           return rows;
         },
 
@@ -11547,7 +11547,7 @@
               ? supabaseClient.from('units').select(unitSelect).is('archived_at', null).order('created_at', { ascending: false })
               : Promise.resolve({ data: [], error: null }),
             canLoadTenants
-              ? supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_accepted, created_at').is('archived_at', null).order('full_name', { ascending: true })
+              ? supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_accepted, created_at, archived_at').is('archived_at', null).order('full_name', { ascending: true })
               : Promise.resolve({ data: [], error: null }),
             canLoadLeases
               ? supabaseClient.from('leases').select(leaseSelect).order('end_date', { ascending: true })
@@ -11866,16 +11866,16 @@
               this.propertyUnit.error = error.message;
               return;
             }
-          } else {
-            const { error } = await supabaseClient
-              .from('units')
-              .update({ status: 'vacant' })
-              .eq('id', unit.id);
+          }
 
-            if (error) {
-              this.propertyUnit.error = error.message;
-              return;
-            }
+          const { error: unitError } = await supabaseClient
+            .from('units')
+            .update({ status: 'vacant' })
+            .eq('id', unit.id);
+
+          if (unitError) {
+            this.propertyUnit.error = unitError.message;
+            return;
           }
 
           await this.loadPropertyUnitData();
@@ -14516,7 +14516,7 @@
             const staffSelect = 'id, management_company_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_view_finance, invited_at, accepted_at, status, staff_profile:profiles!management_staff_permissions_staff_profile_id_fkey(id, landlord_id, full_name, phone, email, role, created_at)';
             const [propertiesResult, tenantsResult, leasesResult, staffResult, inviteTokensResult] = await Promise.all([
               supabaseClient.from('properties').select('id, landlord_id, name, address, city, created_at').is('archived_at', null).order('name', { ascending: true }),
-              supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_accepted, created_at').is('archived_at', null).order('full_name', { ascending: true }),
+              supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_accepted, created_at, archived_at').is('archived_at', null).order('full_name', { ascending: true }),
               supabaseClient.from('leases').select('id, unit_id, tenant_id, landlord_id, start_date, end_date, monthly_rent, deposit_amount, deposit_paid, lease_document_url, lease_document_path, lease_document_name, lease_document_size, lease_document_uploaded_by, lease_document_uploaded_at, status, created_at, tenants(id, full_name, email, phone), units(id, unit_number, property_id, properties(id, name, address, city))').order('end_date', { ascending: true }),
               supabaseClient.from('management_staff_permissions').select(staffSelect).eq('management_company_id', this.managementContext.company.id).eq('status', 'approved').order('accepted_at', { ascending: false }),
               supabaseClient.from('invite_tokens').select('id, token, email, role, metadata, landlord_id, created_at, expires_at').eq('role', 'management_staff').eq('used', false).eq('metadata->>management_company_id', this.managementContext.company.id).order('created_at', { ascending: false })
@@ -15402,7 +15402,7 @@
               ? supabaseClient.from('units').select('id, property_id, unit_number, bedrooms, bathrooms, monthly_rent, status, properties(id, name, address, city)').is('archived_at', null).order('unit_number', { ascending: true })
               : Promise.resolve({ data: [], error: null }),
             canLoadTenants
-              ? supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_token, invite_accepted, created_at').is('archived_at', null).order('created_at', { ascending: false })
+              ? supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_token, invite_accepted, created_at, archived_at').is('archived_at', null).order('created_at', { ascending: false })
               : Promise.resolve({ data: [], error: null }),
             canLoadLeases
               ? supabaseClient.from('leases').select('id, unit_id, tenant_id, landlord_id, start_date, end_date, monthly_rent, deposit_amount, deposit_paid, lease_document_url, lease_document_path, lease_document_name, lease_document_size, lease_document_uploaded_by, lease_document_uploaded_at, status, created_at, tenants(id, full_name, email, phone), units(id, unit_number, property_id, properties(id, name, address, city))').order('created_at', { ascending: false })
@@ -15723,16 +15723,25 @@
           ], search));
         },
 
+        tenantLinkStatus(tenant) {
+          if (!tenant || tenant.archived_at) return 'rejected';
+          const rawStatus = String(tenant.link_status || tenant.response_status || tenant.status || '').toLowerCase();
+          if (tenant.invite_accepted === true && Boolean(tenant.profile_id)) return 'accepted';
+          if (rawStatus === 'accepted' && Boolean(tenant.profile_id)) return 'accepted';
+          if (rawStatus === 'rejected' || rawStatus === 'declined') return 'rejected';
+          return 'pending';
+        },
+
         tenantLinkAccepted(tenant) {
-          return tenant?.invite_accepted === true && Boolean(tenant.profile_id);
+          return this.tenantLinkStatus(tenant) === 'accepted';
         },
 
         acceptedTenants() {
-          return this.tenantLease.tenants.filter(tenant => this.tenantLinkAccepted(tenant));
+          return this.tenantLease.tenants.filter(tenant => this.tenantLinkStatus(tenant) === 'accepted');
         },
 
         pendingTenantRequests() {
-          return this.tenantLease.tenants.filter(tenant => !this.tenantLinkAccepted(tenant));
+          return this.tenantLease.tenants.filter(tenant => this.tenantLinkStatus(tenant) === 'pending');
         },
 
         managementLandlordProperties(landlordId) {
@@ -16545,7 +16554,6 @@
           notification.response_status = accept ? 'accepted' : 'rejected';
           notification.is_read = true;
           this.notifications.items = this.notifications.items.map(item => item.id === notification.id ? { ...item, response_status: notification.response_status, is_read: true } : item);
-          await this.loadNotifications();
           await this.loadUnreadCount(this.profile.id);
           if (accept) {
             await this.loadTenantData();
@@ -16555,6 +16563,7 @@
             await this.loadTenantSettingsLandlords();
             this.successMessage = 'Tenant request rejected.';
           }
+          await this.loadNotifications();
           this.notifications.saving = false;
         },
 
