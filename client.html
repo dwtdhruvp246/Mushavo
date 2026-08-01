@@ -3081,7 +3081,7 @@
                                 <button class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" type="button" @click="createUnitTenantInvite" :disabled="propertyUnit.saving" x-text="propertyUnit.assignForm.tenantLookup.account_found ? 'Send Request' : 'Create Invite Link'"></button>
                                 <button x-show="propertyUnit.assignForm.tenantInviteLink" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="copyText(propertyUnit.assignForm.tenantInviteLink)">Copy Link</button>
                               </div>
-                              <p x-show="propertyUnit.assignForm.tenantInviteLink" class="mt-3 break-all rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800" x-text="propertyUnit.assignForm.tenantInviteLink"></p>
+                              <p x-show="propertyUnit.assignForm.tenantInviteLink" class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">Free tenant signup link ready. Copy and send it to the tenant.</p>
                               <p x-show="propertyUnit.assignForm.tenantLookup.account_found && !propertyUnit.assignForm.tenantInviteLink" class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">No link is needed. The tenant will receive a notification to accept or reject this request.</p>
                             </div>
                           </template>
@@ -3323,8 +3323,8 @@
 
                     <template x-if="tenantLease.generatedInviteLink">
                       <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                        <p class="text-sm font-semibold text-emerald-800">Tenant invite link generated</p>
-                        <p class="mt-2 break-all text-sm text-emerald-700" x-text="tenantLease.generatedInviteLink"></p>
+                        <p class="text-sm font-semibold text-emerald-800">Free tenant signup link ready.</p>
+                        <p class="mt-2 text-sm text-emerald-700">Copy and send it to the tenant.</p>
                         <button class="mt-3 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="copyText(tenantLease.generatedInviteLink)">Copy link</button>
                       </div>
                     </template>
@@ -12077,7 +12077,7 @@
 
           if (!lookup?.account_found) {
             this.propertyUnit.assignForm.tenantInviteLink = this.buildPublicSignupLink('tenant-signup.html');
-            this.successMessage = 'Tenant signup link ready. Copy and send it to the tenant so they can create their account.';
+            this.successMessage = 'Free tenant signup link ready. Copy and send it to the tenant.';
             return;
           }
 
@@ -15294,7 +15294,7 @@
 
           if (canAddNewTenant) {
             this.tenantLease.generatedInviteLink = this.buildPublicSignupLink('tenant-signup.html');
-            this.successMessage = 'Tenant signup link ready. Copy and send it to the tenant so they can create their account.';
+            this.successMessage = 'Free tenant signup link ready. Copy and send it to the tenant.';
             this.tenantLease.saving = false;
             return;
           }
