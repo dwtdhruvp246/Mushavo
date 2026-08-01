@@ -769,7 +769,7 @@
             <label class="mt-4 block text-sm font-medium text-slate-700">Assign to
               <select class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" x-model="admin.noteForm.assignedTo" :disabled="admin.noteForm.visibility !== 'assigned'">
                 <option value="">Select admin staff</option>
-                <template x-for="staff in adminNoteAssignees()" :key="staff.id">
+                <template x-for="staff in adminNoteFormAssignees()" :key="staff.id">
                   <option :value="staff.id" x-text="staff.full_name || staff.email"></option>
                 </template>
               </select>
@@ -7732,6 +7732,14 @@
           return accepted;
         },
 
+        adminNoteFormAssignees() {
+          const currentProfileId = this.profile?.id || '';
+          return this.adminNoteAssignees().filter(row => {
+            const assigneeId = row.id || row.profile_id || '';
+            return assigneeId && assigneeId !== currentProfileId;
+          });
+        },
+
         adminNoteSummary() {
           const notes = this.admin.notes || [];
           return {
@@ -7801,6 +7809,11 @@
 
           if (visibility === 'assigned' && !assignedTo) {
             this.admin.error = 'Select the admin staff member for this note.';
+            return;
+          }
+
+          if (visibility === 'assigned' && assignedTo === this.profile?.id) {
+            this.admin.error = 'Select another admin or admin staff member for this note.';
             return;
           }
 
