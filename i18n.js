@@ -159,7 +159,7 @@
       'Contact Sales': 'Hubungi Jualan',
 
       'Talk to Mushavo.': 'Berbual dengan Mushavo.',
-      'Use this page for support, subscriptions, setup help, pricing questions, country expansion, or account enquiries. Your message is sent straight to the Mushavo admin area.': 'Gunakan halaman ini untuk sokongan, langganan, bantuan persediaan, soalan harga, peluasan negara atau pertanyaan akaun. Mesej anda dihantar terus ke kawasan admin Mushavo.',
+      'Use this page for support, subscriptions, setup help, pricing questions, country expansion, or account enquiries. Your message is sent straight to the Mushavo team.': 'Gunakan halaman ini untuk sokongan, langganan, bantuan persediaan, soalan harga, peluasan negara atau pertanyaan akaun. Mesej anda dihantar terus kepada pasukan Mushavo.',
       'Support': 'Sokongan',
       'Account and product help': 'Bantuan akaun dan produk',
       'For login access, subscription renewal, setup, and product support.': 'Untuk akses log masuk, pembaharuan langganan, persediaan dan sokongan produk.',
@@ -176,7 +176,7 @@
       'Copy Message': 'Salin Mesej',
       'Submitting...': 'Menghantar...',
       'Submitting your enquiry...': 'Pertanyaan anda sedang dihantar...',
-      'Enquiry submitted. The Mushavo team will review it from the admin area.': 'Pertanyaan dihantar. Pasukan Mushavo akan menyemaknya dari kawasan admin.',
+      'Enquiry submitted. The Mushavo team will review it.': 'Pertanyaan dihantar. Pasukan Mushavo akan menyemaknya.',
 
       'Loading Mushavo...': 'Memuatkan Mushavo...',
       'Sign in to Mushavo': 'Log masuk ke Mushavo',
@@ -425,7 +425,7 @@
       'Contact Sales': '联系销售',
 
       'Talk to Mushavo.': '与 Mushavo 联系。',
-      'Use this page for support, subscriptions, setup help, pricing questions, country expansion, or account enquiries. Your message is sent straight to the Mushavo admin area.': '您可以在此页面提交支持、订阅、设置帮助、价格问题、国家扩展或账户咨询。您的消息会直接发送到 Mushavo 管理后台。',
+      'Use this page for support, subscriptions, setup help, pricing questions, country expansion, or account enquiries. Your message is sent straight to the Mushavo team.': '您可以在此页面提交支持、订阅、设置帮助、价格问题、国家扩展或账户咨询。您的消息会直接发送给 Mushavo 团队。',
       'Support': '支持',
       'Account and product help': '账户和产品帮助',
       'For login access, subscription renewal, setup, and product support.': '用于登录访问、订阅续费、设置和产品支持。',
@@ -442,7 +442,7 @@
       'Copy Message': '复制消息',
       'Submitting...': '正在提交...',
       'Submitting your enquiry...': '正在提交您的咨询...',
-      'Enquiry submitted. The Mushavo team will review it from the admin area.': '咨询已提交。Mushavo 团队会在管理后台查看。',
+      'Enquiry submitted. The Mushavo team will review it.': '咨询已提交。Mushavo 团队会进行查看。',
 
       'Loading Mushavo...': '正在加载 Mushavo...',
       'Sign in to Mushavo': '登录 Mushavo',
