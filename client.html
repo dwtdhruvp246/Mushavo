@@ -2984,6 +2984,9 @@
                       <div class="flex flex-wrap gap-2">
                         <button x-show="canEditUnits()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="startEditSelectedUnit">Edit Unit</button>
                         <button x-show="canViewFinancials()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="prepareUnitPayment">Log Payment</button>
+                        <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_in')">Move-in Inspection</button>
+                        <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('routine')">Routine Inspection</button>
+                        <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_out')">Move-out Inspection</button>
                         <button x-show="canAssignTenantToUnit()" class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="prepareAssignTenant(propertyUnit.selectedUnit)">Change Tenant</button>
                         <button x-show="canMarkUnitsVacant() && propertyUnit.selectedUnit?.status === 'occupied'" class="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-yellow-100" type="button" @click="markUnitVacant(propertyUnit.selectedUnit)">Mark Vacant</button>
                         <button x-show="canArchiveUnits()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100" type="button" @click="deleteUnit(propertyUnit.selectedUnit)">Archive Unit</button>
@@ -3059,8 +3062,181 @@
                           <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="propertyUnit.editUnitForm.monthlyRent" required>
                         </label>
                         <button class="self-end rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600" type="submit">Save Unit</button>
+                        </form>
+                      </template>
+
+                    <template x-if="propertyUnit.detailMode === 'inspection' && canManageInspections()">
+                      <form class="mt-5 space-y-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4" @submit.prevent="saveInspection()">
+                        <div class="grid gap-3 lg:grid-cols-4">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Inspection type</span>
+                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="propertyUnit.inspectionForm.type" required>
+                              <option value="move_in">Move-in inspection</option>
+                              <option value="routine">Routine inspection</option>
+                              <option value="move_out">Move-out inspection</option>
+                            </select>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Status</span>
+                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="propertyUnit.inspectionForm.status" required>
+                              <option value="draft">Draft</option>
+                              <option value="completed">Completed</option>
+                              <option value="locked">Locked</option>
+                            </select>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Scheduled for</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="datetime-local" x-model="propertyUnit.inspectionForm.scheduledFor">
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Inspected at</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="datetime-local" x-model="propertyUnit.inspectionForm.inspectedAt">
+                          </label>
+                        </div>
+
+                        <label class="block">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Compare with inspection</span>
+                          <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="propertyUnit.inspectionForm.comparedToInspectionId" x-effect='$nextTick(() => { $el.value = propertyUnit.inspectionForm.comparedToInspectionId ?? "" })'>
+                            <option value="">No comparison</option>
+                            <template x-for="inspection in propertyUnit.inspections.filter(item => item.id !== propertyUnit.inspectionForm.id)" :key="inspection.id">
+                              <option :value="inspection.id" x-text="`${inspectionTypeLabel(inspection.inspection_type)} - ${inspectionDateLabel(inspection)}`"></option>
+                            </template>
+                          </select>
+                        </label>
+
+                        <div class="grid gap-3 lg:grid-cols-2">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Meter readings</span>
+                            <textarea class="min-h-28 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="propertyUnit.inspectionForm.meterReadings" placeholder='Example: {"electricity":"12345","water":"678"}'></textarea>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Summary notes</span>
+                            <textarea class="min-h-28 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="propertyUnit.inspectionForm.summaryNotes"></textarea>
+                          </label>
+                        </div>
+
+                        <section class="rounded-lg border border-slate-200 bg-white p-3">
+                          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <h4 class="text-sm font-semibold text-slate-900">Room-by-room condition</h4>
+                            <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="addInspectionRoomCondition()">Add Room</button>
+                          </div>
+                          <div class="space-y-3">
+                            <template x-for="(room, index) in propertyUnit.inspectionForm.roomConditions" :key="index">
+                              <div class="grid gap-2 lg:grid-cols-[1fr_0.8fr_2fr_auto]">
+                                <input class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="room.room" placeholder="Room">
+                                <select class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="room.condition">
+                                  <option value="excellent">Excellent</option>
+                                  <option value="good">Good</option>
+                                  <option value="fair">Fair</option>
+                                  <option value="poor">Poor</option>
+                                  <option value="damaged">Damaged</option>
+                                </select>
+                                <input class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="room.notes" placeholder="Condition notes">
+                                <button class="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-40" type="button" @click="removeInspectionRoomCondition(index)" :disabled="propertyUnit.inspectionForm.roomConditions.length === 1">Remove</button>
+                              </div>
+                            </template>
+                          </div>
+                        </section>
+
+                        <div class="grid gap-3 lg:grid-cols-2" x-show="propertyUnit.inspectionForm.type === 'move_out'">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Deposit deduction amount</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="number" min="0" step="0.01" x-model.number="propertyUnit.inspectionForm.depositDeductionAmount">
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Deposit deduction notes</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="propertyUnit.inspectionForm.depositDeductionNotes">
+                          </label>
+                        </div>
+
+                        <div class="grid gap-3 lg:grid-cols-[1fr_0.8fr_1fr_1.2fr]">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Tenant signature name</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="propertyUnit.inspectionForm.tenantSignatureName">
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Evidence type</span>
+                            <select class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="propertyUnit.inspectionForm.evidenceKind">
+                              <option value="photo">Photo</option>
+                              <option value="video">Video</option>
+                              <option value="document">Document</option>
+                              <option value="deduction_evidence">Deduction evidence</option>
+                            </select>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Room name</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="propertyUnit.inspectionForm.evidenceRoomName">
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Photo, video, or file</span>
+                            <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="file" accept="image/*,video/*,application/pdf" @change="handleInspectionEvidenceChange($event)">
+                          </label>
+                        </div>
+                        <label class="block">
+                          <span class="mb-2 block text-sm font-medium text-slate-700">Evidence caption</span>
+                          <input class="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="propertyUnit.inspectionForm.evidenceCaption">
+                        </label>
+
+                        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                          <button class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="propertyUnit.detailMode = ''">Cancel</button>
+                          <button class="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" type="submit" :disabled="propertyUnit.saving" x-text="propertyUnit.inspectionForm.id ? 'Save Inspection' : 'Create Inspection'"></button>
+                        </div>
                       </form>
                     </template>
+
+                    <section x-show="canViewUnits()" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h3 class="text-sm font-semibold text-slate-900">Inspection Records</h3>
+                          <p class="mt-1 text-xs text-slate-500">Move-in, routine, move-out, evidence, signatures, and deposit deductions.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                          <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_in')">Move-in</button>
+                          <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('routine')">Routine</button>
+                          <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_out')">Move-out</button>
+                        </div>
+                      </div>
+                      <template x-if="propertyUnit.inspections.length === 0">
+                        <p class="mt-4 text-sm text-slate-500">No inspections recorded for this unit yet.</p>
+                      </template>
+                      <div x-show="propertyUnit.inspections.length > 0" class="mt-4 grid gap-3 lg:grid-cols-2">
+                        <template x-for="inspection in propertyUnit.inspections" :key="inspection.id">
+                          <article class="rounded-lg border border-slate-200 bg-white p-4">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <p class="text-sm font-semibold text-slate-900" x-text="inspectionTypeLabel(inspection.inspection_type)"></p>
+                                <p class="mt-1 text-xs text-slate-500" x-text="inspectionDateLabel(inspection)"></p>
+                              </div>
+                              <span class="self-start rounded-full px-2 py-1 text-[11px] font-semibold" :class="inspectionStatusBadgeClass(inspection)" x-text="inspectionStatusLabel(inspection.status)"></span>
+                            </div>
+                            <dl class="mt-3 space-y-2 text-sm">
+                              <div class="flex justify-between gap-3"><dt class="text-slate-500">Meter readings</dt><dd class="text-right font-medium text-slate-900" x-text="formatInspectionMeterReadings(inspection.meter_readings)"></dd></div>
+                              <div class="flex justify-between gap-3"><dt class="text-slate-500">Compared with</dt><dd class="text-right font-medium text-slate-900" x-text="inspectionCompareLabel(inspection)"></dd></div>
+                              <div x-show="Number(inspection.deposit_deduction_amount || 0) > 0" class="flex justify-between gap-3"><dt class="text-slate-500">Deposit deduction</dt><dd class="text-right font-medium text-red-600" x-text="formatCurrency(inspection.deposit_deduction_amount)"></dd></div>
+                            </dl>
+                            <p class="mt-3 whitespace-pre-wrap text-sm text-slate-600" x-text="inspection.summary_notes || 'No summary notes.'"></p>
+                            <div class="mt-3 rounded-lg bg-slate-50 p-3">
+                              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Room conditions</p>
+                              <div class="mt-2 space-y-1">
+                                <template x-for="(room, roomIndex) in inspectionRoomConditions(inspection)" :key="roomIndex">
+                                  <p class="text-xs text-slate-600"><span class="font-semibold text-slate-800" x-text="room.room || 'Room'"></span>: <span x-text="room.condition || '-'"></span><span x-show="room.notes" x-text="` - ${room.notes}`"></span></p>
+                                </template>
+                              </div>
+                            </div>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                              <template x-for="file in inspectionFilesFor(inspection.id)" :key="file.id">
+                                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openInspectionFile(file, 'propertyUnit')" x-text="file.caption || file.file_kind || 'Evidence'"></button>
+                              </template>
+                            </div>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                              <button x-show="canManageInspections() && inspection.status !== 'locked' && !inspection.locked_at" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="editInspection(inspection)">Edit</button>
+                              <button x-show="canManageInspections() && inspection.status !== 'locked' && !inspection.locked_at" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="lockInspection(inspection)">Lock Record</button>
+                              <span x-show="inspection.tenant_signed_at" class="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700" x-text="`Tenant signed ${formatDate(inspection.tenant_signed_at)}`"></span>
+                            </div>
+                          </article>
+                        </template>
+                      </div>
+                    </section>
 
                     <template x-if="propertyUnit.detailMode === 'assign'">
                       <div class="mt-5 space-y-4">
@@ -5305,6 +5481,60 @@
               </section>
 
               <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 class="text-sm font-semibold text-slate-900">Inspection Records</h2>
+                    <p class="mt-1 text-sm text-slate-500">Review inspection notes, evidence, and signatures linked to your lease.</p>
+                  </div>
+                  <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="loadTenantData">Refresh</button>
+                </div>
+                <template x-if="tenant.inspections.length === 0">
+                  <p class="py-6 text-center text-sm text-slate-500">No inspection records yet.</p>
+                </template>
+                <div x-show="tenant.inspections.length > 0" class="grid gap-3 lg:grid-cols-2">
+                  <template x-for="inspection in tenant.inspections" :key="inspection.id">
+                    <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p class="text-sm font-semibold text-slate-900" x-text="inspectionTypeLabel(inspection.inspection_type)"></p>
+                          <p class="mt-1 text-xs text-slate-500" x-text="inspectionDateLabel(inspection)"></p>
+                        </div>
+                        <span class="self-start rounded-full px-2 py-1 text-[11px] font-semibold" :class="inspectionStatusBadgeClass(inspection)" x-text="inspectionStatusLabel(inspection.status)"></span>
+                      </div>
+                      <dl class="mt-3 space-y-2 text-sm">
+                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Meter readings</dt><dd class="text-right font-medium text-slate-900" x-text="formatInspectionMeterReadings(inspection.meter_readings)"></dd></div>
+                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Compared with</dt><dd class="text-right font-medium text-slate-900" x-text="inspectionCompareLabel(inspection)"></dd></div>
+                        <div x-show="Number(inspection.deposit_deduction_amount || 0) > 0" class="flex justify-between gap-3"><dt class="text-slate-500">Deposit deduction</dt><dd class="text-right font-medium text-red-600" x-text="formatCurrency(inspection.deposit_deduction_amount)"></dd></div>
+                      </dl>
+                      <p class="mt-3 whitespace-pre-wrap text-sm text-slate-600" x-text="inspection.summary_notes || 'No summary notes.'"></p>
+                      <div class="mt-3 rounded-lg bg-white p-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Room conditions</p>
+                        <div class="mt-2 space-y-1">
+                          <template x-for="(room, roomIndex) in inspectionRoomConditions(inspection)" :key="roomIndex">
+                            <p class="text-xs text-slate-600"><span class="font-semibold text-slate-800" x-text="room.room || 'Room'"></span>: <span x-text="room.condition || '-'"></span><span x-show="room.notes" x-text="` - ${room.notes}`"></span></p>
+                          </template>
+                        </div>
+                      </div>
+                      <div class="mt-3 flex flex-wrap gap-2">
+                        <template x-for="file in tenantInspectionFilesFor(inspection.id)" :key="file.id">
+                          <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openInspectionFile(file, 'tenant')" x-text="file.caption || file.file_kind || 'Evidence'"></button>
+                        </template>
+                      </div>
+                      <template x-if="inspection.tenant_signed_at">
+                        <p class="mt-3 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700" x-text="`Signed on ${formatDate(inspection.tenant_signed_at)}`"></p>
+                      </template>
+                      <template x-if="!inspection.tenant_signed_at">
+                        <div class="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                          <input class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="tenant.inspectionSignatureName" placeholder="Type your full name to sign">
+                          <button class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" type="button" @click="signTenantInspection(inspection)" :disabled="tenant.loading">Sign Inspection</button>
+                        </div>
+                      </template>
+                    </article>
+                  </template>
+                </div>
+              </section>
+
+              <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
                 <div class="mb-4 flex items-center justify-between gap-4">
                   <h2 class="text-sm font-semibold text-slate-900">Recent Maintenance</h2>
                   <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('tenant-maintenance')">View All</button>
@@ -5597,10 +5827,12 @@
     const MAX_LEASE_DOCUMENT_SIZE = 20 * 1024 * 1024;
     const TENANT_DOCUMENT_BUCKET = 'tenant-documents';
     const MAX_TENANT_DOCUMENT_SIZE = 10 * 1024 * 1024;
-    const PAYMENT_PROOF_BUCKET = 'payment-proofs';
-    const MAINTENANCE_PHOTO_BUCKET = 'maintenance-photos';
-    const MAX_IMAGE_UPLOAD_SIZE = 10 * 1024 * 1024;
-    const MAX_PAYMENT_PROOF_UPLOAD_SIZE = 10 * 1024 * 1024;
+      const PAYMENT_PROOF_BUCKET = 'payment-proofs';
+      const MAINTENANCE_PHOTO_BUCKET = 'maintenance-photos';
+      const INSPECTION_FILE_BUCKET = 'inspection-files';
+      const MAX_IMAGE_UPLOAD_SIZE = 10 * 1024 * 1024;
+      const MAX_PAYMENT_PROOF_UPLOAD_SIZE = 10 * 1024 * 1024;
+      const MAX_INSPECTION_FILE_SIZE = 50 * 1024 * 1024;
     const COMPANY_NAME = 'Mushavo';
     const COMPANY_TAGLINE = 'Your property, handled simply.';
     const SUPPORT_EMAIL = 'dhruvp246@gmail.com';
@@ -5961,8 +6193,11 @@
           currentLease: null,
           assignedStaff: [],
           selectedMaintenanceRequest: null,
+          selectedInspection: null,
           payments: [],
           maintenance: [],
+          inspections: [],
+          inspectionFiles: [],
           properties: [],
           units: [],
           tenants: [],
@@ -6018,6 +6253,24 @@
             method: 'cash',
             notes: '',
             proofFile: null
+          },
+          inspectionForm: {
+            id: '',
+            type: 'routine',
+            status: 'completed',
+            scheduledFor: '',
+            inspectedAt: '',
+            meterReadings: '',
+            roomConditions: [{ room: 'General', condition: 'good', notes: '' }],
+            summaryNotes: '',
+            comparedToInspectionId: '',
+            depositDeductionAmount: 0,
+            depositDeductionNotes: '',
+            tenantSignatureName: '',
+            evidenceKind: 'photo',
+            evidenceRoomName: '',
+            evidenceCaption: '',
+            evidenceFile: null
           }
         },
         account: {
@@ -6221,6 +6474,9 @@
           paymentSubmissions: [],
           maintenanceRequests: [],
           contacts: [],
+          inspections: [],
+          inspectionFiles: [],
+          inspectionSignatureName: '',
           paymentForm: {
             amount: 0,
             rentPeriodKey: '',
@@ -11707,6 +11963,372 @@
           return this.profile?.role === 'landlord' || Boolean(this.permissions.can_view_payments || this.permissions.can_verify_payments);
         },
 
+        canManageInspections() {
+          if (!this.canViewUnits()) return false;
+          if (['landlord', 'management_leader'].includes(this.profile?.role)) return true;
+          return Boolean(
+            this.permissions.can_manage_maintenance
+            || this.permissions.can_create_maintenance
+            || this.permissions.can_add_resolution_notes
+            || this.permissions.can_edit_units
+          );
+        },
+
+        defaultInspectionForm(type = 'routine') {
+          return {
+            id: '',
+            type,
+            status: 'completed',
+            scheduledFor: '',
+            inspectedAt: this.toDatetimeLocal(new Date()),
+            comparedToInspectionId: '',
+            meterReadings: '',
+            roomConditions: [{ room: 'General', condition: 'good', notes: '' }],
+            summaryNotes: '',
+            depositDeductionAmount: 0,
+            depositDeductionNotes: '',
+            tenantSignatureName: '',
+            evidenceKind: type === 'move_out' ? 'deduction_evidence' : 'photo',
+            evidenceRoomName: '',
+            evidenceCaption: '',
+            evidenceFile: null
+          };
+        },
+
+        prepareInspection(type = 'routine') {
+          if (!this.propertyUnit.selectedUnit) {
+            this.propertyUnit.error = 'Open a unit before creating an inspection.';
+            return;
+          }
+          this.propertyUnit.error = '';
+          this.propertyUnit.detailMode = 'inspection';
+          const form = this.defaultInspectionForm(type);
+          if (type === 'move_out') {
+            form.comparedToInspectionId = (this.propertyUnit.inspections || [])
+              .find(inspection => inspection.inspection_type === 'move_in')?.id || '';
+          }
+          this.propertyUnit.inspectionForm = form;
+        },
+
+        editInspection(inspection) {
+          if (!inspection || !this.canManageInspections()) return;
+          if (inspection.locked_at || inspection.status === 'locked') {
+            this.propertyUnit.error = 'Locked inspection records cannot be edited.';
+            return;
+          }
+          const rooms = this.inspectionRoomConditions(inspection);
+          this.propertyUnit.error = '';
+          this.propertyUnit.detailMode = 'inspection';
+          this.propertyUnit.inspectionForm = {
+            ...this.defaultInspectionForm(inspection.inspection_type || 'routine'),
+            id: inspection.id,
+            type: inspection.inspection_type || 'routine',
+            status: inspection.status || 'completed',
+            scheduledFor: this.toDatetimeLocal(inspection.scheduled_for),
+            inspectedAt: this.toDatetimeLocal(inspection.inspected_at),
+            comparedToInspectionId: inspection.compared_to_inspection_id || '',
+            meterReadings: this.stringifyInspectionMeterReadings(inspection.meter_readings),
+            roomConditions: rooms.length ? rooms.map(room => ({
+              room: room.room || '',
+              condition: room.condition || 'good',
+              notes: room.notes || ''
+            })) : [{ room: 'General', condition: 'good', notes: '' }],
+            summaryNotes: inspection.summary_notes || '',
+            depositDeductionAmount: Number(inspection.deposit_deduction_amount || 0),
+            depositDeductionNotes: inspection.deposit_deduction_notes || '',
+            tenantSignatureName: inspection.tenant_signature_name || '',
+            evidenceKind: inspection.inspection_type === 'move_out' ? 'deduction_evidence' : 'photo',
+            evidenceRoomName: '',
+            evidenceCaption: '',
+            evidenceFile: null
+          };
+        },
+
+        inspectionTypeLabel(type) {
+          const labels = {
+            move_in: 'Move-in inspection',
+            routine: 'Routine inspection',
+            move_out: 'Move-out inspection'
+          };
+          return labels[type] || 'Inspection';
+        },
+
+        inspectionStatusLabel(status) {
+          const labels = { draft: 'Draft', completed: 'Completed', locked: 'Locked' };
+          return labels[status] || 'Draft';
+        },
+
+        inspectionStatusBadgeClass(inspection) {
+          if (inspection?.locked_at || inspection?.status === 'locked') return 'bg-slate-200 text-slate-700';
+          if (inspection?.status === 'completed') return 'bg-emerald-100 text-emerald-700';
+          return 'bg-amber-100 text-amber-700';
+        },
+
+        inspectionDateLabel(inspection) {
+          return this.formatDate(inspection?.inspected_at || inspection?.scheduled_for || inspection?.created_at);
+        },
+
+        toDatetimeLocal(value) {
+          if (!value) return '';
+          const date = value instanceof Date ? value : new Date(value);
+          if (Number.isNaN(date.getTime())) return '';
+          const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+          return offsetDate.toISOString().slice(0, 16);
+        },
+
+        datetimeInputToIso(value) {
+          if (!value) return null;
+          const date = new Date(value);
+          return Number.isNaN(date.getTime()) ? null : date.toISOString();
+        },
+
+        inspectionFilesFor(inspectionId) {
+          return (this.propertyUnit.inspectionFiles || []).filter(file => file.inspection_id === inspectionId);
+        },
+
+        tenantInspectionFilesFor(inspectionId) {
+          return (this.tenant.inspectionFiles || []).filter(file => file.inspection_id === inspectionId);
+        },
+
+        inspectionRoomConditions(inspection) {
+          const value = inspection?.room_conditions;
+          if (!value) return [];
+          if (Array.isArray(value)) return value;
+          if (typeof value === 'string') {
+            try {
+              const parsed = JSON.parse(value);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+              return [];
+            }
+          }
+          return [];
+        },
+
+        stringifyInspectionMeterReadings(value) {
+          if (!value) return '';
+          if (typeof value === 'string') return value;
+          try {
+            return JSON.stringify(value);
+          } catch (error) {
+            return '';
+          }
+        },
+
+        formatInspectionMeterReadings(value) {
+          const text = this.stringifyInspectionMeterReadings(value);
+          return text || '-';
+        },
+
+        inspectionCompareLabel(inspection) {
+          if (!inspection?.compared_to_inspection_id) return '-';
+          const source = [...(this.propertyUnit.inspections || []), ...(this.tenant.inspections || [])];
+          const compared = source.find(item => item.id === inspection.compared_to_inspection_id);
+          return compared ? `${this.inspectionTypeLabel(compared.inspection_type)} - ${this.inspectionDateLabel(compared)}` : 'Previous inspection';
+        },
+
+        addInspectionRoomCondition() {
+          this.propertyUnit.inspectionForm.roomConditions.push({ room: '', condition: 'good', notes: '' });
+        },
+
+        removeInspectionRoomCondition(index) {
+          if (this.propertyUnit.inspectionForm.roomConditions.length <= 1) return;
+          this.propertyUnit.inspectionForm.roomConditions.splice(index, 1);
+        },
+
+        parseInspectionMeterReadings(value) {
+          const text = String(value || '').trim();
+          if (!text) return {};
+          try {
+            return JSON.parse(text);
+          } catch (error) {
+            return text.split('\n').reduce((readings, line) => {
+              const [key, ...rest] = line.split(':');
+              if (key && rest.length) readings[key.trim()] = rest.join(':').trim();
+              return readings;
+            }, {});
+          }
+        },
+
+        cleanInspectionRoomConditions(rooms) {
+          return (rooms || [])
+            .map(room => ({
+              room: String(room.room || '').trim(),
+              condition: room.condition || 'good',
+              notes: String(room.notes || '').trim()
+            }))
+            .filter(room => room.room || room.notes);
+        },
+
+        handleInspectionEvidenceChange(event) {
+          this.propertyUnit.inspectionForm.evidenceFile = event.target.files?.[0] || null;
+        },
+
+        sanitizeInspectionFileName(name) {
+          return String(name || 'inspection-file')
+            .replace(/[^a-zA-Z0-9._-]+/g, '-')
+            .replace(/-+/g, '-')
+            .slice(0, 120);
+        },
+
+        async uploadInspectionFile(savedInspection) {
+          const file = this.propertyUnit.inspectionForm.evidenceFile;
+          if (!file || !savedInspection?.id) return;
+          if (file.size > MAX_INSPECTION_FILE_SIZE) {
+            throw new Error('Inspection file is too large. Upload a file under 50 MB.');
+          }
+          const objectPath = `${savedInspection.id}/${this.generateSecureToken().slice(0, 16)}-${this.sanitizeInspectionFileName(file.name)}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from(INSPECTION_FILE_BUCKET)
+            .upload(objectPath, file, {
+              cacheControl: '3600',
+              contentType: file.type || 'application/octet-stream',
+              upsert: false
+            });
+          if (uploadError) throw uploadError;
+
+          const { error: fileError } = await supabaseClient.from('inspection_files').insert({
+            inspection_id: savedInspection.id,
+            landlord_id: savedInspection.landlord_id,
+            property_id: savedInspection.property_id,
+            unit_id: savedInspection.unit_id,
+            lease_id: savedInspection.lease_id || null,
+            tenant_id: savedInspection.tenant_id || null,
+            file_kind: this.propertyUnit.inspectionForm.evidenceKind || 'photo',
+            room_name: this.propertyUnit.inspectionForm.evidenceRoomName || null,
+            caption: this.propertyUnit.inspectionForm.evidenceCaption || file.name,
+            object_path: objectPath,
+            mime_type: file.type || null,
+            file_size: file.size,
+            uploaded_by: this.profile?.id || null
+          });
+          if (fileError) throw fileError;
+        },
+
+        async saveInspection() {
+          if (!this.propertyUnit.selectedUnit || !this.canManageInspections()) return;
+          const form = this.propertyUnit.inspectionForm;
+          const roomConditions = this.cleanInspectionRoomConditions(form.roomConditions);
+          if (!roomConditions.length) {
+            this.propertyUnit.error = 'Add at least one room condition before saving an inspection.';
+            return;
+          }
+          this.propertyUnit.saving = true;
+          this.propertyUnit.error = '';
+          try {
+            const lease = this.propertyUnit.currentLease || {};
+            const payload = {
+              landlord_id: this.currentLandlordId(),
+              property_id: this.propertyUnit.selectedUnit.property_id,
+              unit_id: this.propertyUnit.selectedUnit.id,
+              lease_id: lease.id || null,
+              tenant_id: lease.tenant_id || null,
+              inspection_type: form.type,
+              status: form.status,
+              scheduled_for: this.datetimeInputToIso(form.scheduledFor),
+              inspected_at: this.datetimeInputToIso(form.inspectedAt) || new Date().toISOString(),
+              compared_to_inspection_id: form.comparedToInspectionId || null,
+              meter_readings: this.parseInspectionMeterReadings(form.meterReadings),
+              room_conditions: roomConditions,
+              summary_notes: form.summaryNotes || null,
+              deposit_deduction_amount: form.type === 'move_out' ? Number(form.depositDeductionAmount || 0) : 0,
+              deposit_deduction_notes: form.type === 'move_out' ? (form.depositDeductionNotes || null) : null,
+              tenant_signature_name: form.tenantSignatureName || null,
+              tenant_signed_at: form.tenantSignatureName ? new Date().toISOString() : null,
+              locked_at: form.status === 'locked' ? new Date().toISOString() : null,
+              created_by: this.profile?.id || null
+            };
+
+            let savedInspection;
+            if (form.id) {
+              const { data, error } = await supabaseClient
+                .from('property_inspections')
+                .update(payload)
+                .eq('id', form.id)
+                .select('*')
+                .single();
+              if (error) throw error;
+              savedInspection = data;
+            } else {
+              const { data, error } = await supabaseClient
+                .from('property_inspections')
+                .insert(payload)
+                .select('*')
+                .single();
+              if (error) throw error;
+              savedInspection = data;
+            }
+
+            await this.uploadInspectionFile(savedInspection);
+            this.propertyUnit.detailMode = '';
+            this.propertyUnit.inspectionForm = this.defaultInspectionForm();
+            await this.loadUnitDetail(this.propertyUnit.selectedUnit);
+            this.successMessage = form.id ? 'Inspection updated.' : 'Inspection recorded.';
+          } catch (error) {
+            this.propertyUnit.error = this.cleanSupabaseError(error?.message || 'Inspection could not be saved.');
+          } finally {
+            this.propertyUnit.saving = false;
+          }
+        },
+
+        async lockInspection(inspection) {
+          if (!inspection || !this.canManageInspections()) return;
+          this.propertyUnit.saving = true;
+          this.propertyUnit.error = '';
+          try {
+            const { error } = await supabaseClient
+              .from('property_inspections')
+              .update({
+                status: 'locked',
+                locked_at: new Date().toISOString(),
+                locked_by: this.profile?.id || null
+              })
+              .eq('id', inspection.id);
+            if (error) throw error;
+            await this.loadUnitDetail(this.propertyUnit.selectedUnit);
+            this.successMessage = 'Inspection record locked.';
+          } catch (error) {
+            this.propertyUnit.error = this.cleanSupabaseError(error?.message || 'Inspection could not be locked.');
+          } finally {
+            this.propertyUnit.saving = false;
+          }
+        },
+
+        async signTenantInspection(inspection) {
+          if (!inspection) return;
+          const signatureName = String(this.tenant.inspectionSignatureName || this.tenant.tenantRow?.full_name || this.profile?.full_name || '').trim();
+          if (!signatureName) {
+            this.tenant.error = 'Type your full name before signing the inspection.';
+            return;
+          }
+          this.tenant.loading = true;
+          this.tenant.error = '';
+          try {
+            const { error } = await supabaseClient.rpc('tenant_sign_inspection', {
+              p_inspection_id: inspection.id,
+              p_signature_name: signatureName
+            });
+            if (error) throw error;
+            this.tenant.inspectionSignatureName = '';
+            await this.loadTenantData();
+            this.successMessage = 'Inspection signed.';
+          } catch (error) {
+            this.tenant.error = this.cleanSupabaseError(error?.message || 'Inspection could not be signed.');
+          } finally {
+            this.tenant.loading = false;
+          }
+        },
+
+        async openInspectionFile(file, scope = 'propertyUnit') {
+          const targetScope = scope === 'tenant' ? 'tenant' : 'propertyUnit';
+          await this.openPrivateImage(
+            INSPECTION_FILE_BUCKET,
+            file?.object_path || '',
+            file?.caption || file?.object_path || 'inspection-file',
+            targetScope
+          );
+        },
+
         async loadPropertyUnitData() {
           this.beginDataLoad('propertyUnit', this.propertyUnit);
           this.propertyUnit.error = '';
@@ -12216,22 +12838,31 @@
           const activeLease = this.propertyUnit.leases.find(lease => lease.unit_id === unit.id && lease.status === 'active') || null;
           this.propertyUnit.currentLease = activeLease;
 
-          const [paymentsResult, maintenanceResult, assignedStaffResult] = await Promise.all([
+          const inspectionSelect = 'id, landlord_id, property_id, unit_id, lease_id, tenant_id, maintenance_request_id, inspection_type, status, scheduled_for, inspected_at, inspector_profile_id, tenant_signature_name, tenant_signed_at, meter_readings, room_conditions, summary_notes, deposit_deduction_amount, deposit_deduction_notes, compared_to_inspection_id, locked_at, locked_by, created_by, updated_by, created_at, updated_at';
+          const [paymentsResult, maintenanceResult, assignedStaffResult, inspectionsResult] = await Promise.all([
             activeLease && this.canViewFinancials()
               ? supabaseClient.from('payments').select('id, lease_id, amount_paid, payment_date, payment_method, rent_period_start, rent_period_end, rent_period_label, payment_purpose, purpose_description, is_historical, notes, receipt_number, proof_file_path, proof_file_name, proof_file_size, proof_file_uploaded_by, proof_file_uploaded_at, recorded_by, created_at, payment_submissions(id, proof_image_url, proof_image_path, proof_image_name, proof_image_size)').eq('lease_id', activeLease.id).order('payment_date', { ascending: false })
               : Promise.resolve({ data: [], error: null }),
             supabaseClient.from('maintenance_requests').select('id, unit_id, lease_id, description, photo_url, photo_path, photo_name, photo_size, photo_uploaded_by, photo_uploaded_at, status, priority, resolution_notes, workflow_notes, scheduled_for, final_cost, completed_at, completed_by, cancelled_at, cancellation_reason, created_at, resolved_at, updated_at').eq('unit_id', unit.id).is('archived_at', null).order('created_at', { ascending: false }),
             this.canViewUnitAssignedStaff()
               ? supabaseClient.rpc('unit_assigned_staff', { p_unit_id: unit.id })
-              : Promise.resolve({ data: [], error: null })
+              : Promise.resolve({ data: [], error: null }),
+            supabaseClient.from('property_inspections').select(inspectionSelect).eq('unit_id', unit.id).order('created_at', { ascending: false })
           ]);
 
-          const firstError = paymentsResult.error || maintenanceResult.error || assignedStaffResult.error;
+          const firstError = paymentsResult.error || maintenanceResult.error || assignedStaffResult.error || inspectionsResult.error;
           if (firstError) this.propertyUnit.error = firstError.message;
 
           this.propertyUnit.payments = paymentsResult.data || [];
           this.propertyUnit.maintenance = maintenanceResult.data || [];
           this.propertyUnit.assignedStaff = assignedStaffResult.data || [];
+          this.propertyUnit.inspections = inspectionsResult.data || [];
+          const inspectionIds = this.propertyUnit.inspections.map(inspection => inspection.id);
+          const filesResult = inspectionIds.length
+            ? await supabaseClient.from('inspection_files').select('id, inspection_id, landlord_id, property_id, unit_id, lease_id, tenant_id, file_kind, room_name, caption, object_path, mime_type, file_size, uploaded_by, created_at').in('inspection_id', inspectionIds).order('created_at', { ascending: false })
+            : { data: [], error: null };
+          if (filesResult.error) this.propertyUnit.error = filesResult.error.message;
+          this.propertyUnit.inspectionFiles = filesResult.data || [];
         },
 
         startEditSelectedUnit() {
@@ -15298,6 +15929,8 @@
             this.tenant.paymentSubmissions = [];
             this.tenant.maintenanceRequests = [];
             this.tenant.contacts = [];
+            this.tenant.inspections = [];
+            this.tenant.inspectionFiles = [];
             this.tenant.error = 'No tenant record is linked to this account yet.';
             this.finishDataLoad('tenant', this.tenant);
             return;
@@ -15339,12 +15972,15 @@
             this.tenant.paymentSubmissions = [];
             this.tenant.maintenanceRequests = [];
             this.tenant.contacts = [];
+            this.tenant.inspections = [];
+            this.tenant.inspectionFiles = [];
             this.tenant.landlord = null;
             this.finishDataLoad('tenant', this.tenant);
             return;
           }
 
-          const [chargesResult, paymentsResult, submissionsResult, maintenanceResult] = await Promise.all([
+          const inspectionSelect = 'id, landlord_id, property_id, unit_id, lease_id, tenant_id, maintenance_request_id, inspection_type, status, scheduled_for, inspected_at, inspector_profile_id, tenant_signature_name, tenant_signed_at, meter_readings, room_conditions, summary_notes, deposit_deduction_amount, deposit_deduction_notes, compared_to_inspection_id, locked_at, locked_by, created_by, updated_by, created_at, updated_at';
+          const [chargesResult, paymentsResult, submissionsResult, maintenanceResult, inspectionsResult] = await Promise.all([
             supabaseClient
               .from('lease_charges')
               .select('id, lease_id, charge_type, charge_status, due_date, period_start, period_end, description, amount, amount_paid, created_at')
@@ -15365,10 +16001,15 @@
               .select('id, unit_id, lease_id, landlord_id, submitted_by_profile_id, description, photo_url, photo_path, photo_name, photo_size, photo_uploaded_by, photo_uploaded_at, status, priority, resolution_notes, workflow_notes, scheduled_for, final_cost, completed_at, completed_by, cancelled_at, cancellation_reason, created_at, resolved_at, updated_at')
               .in('lease_id', leaseIds)
               .is('archived_at', null)
+              .order('created_at', { ascending: false }),
+            supabaseClient
+              .from('property_inspections')
+              .select(inspectionSelect)
+              .in('tenant_id', tenantIds)
               .order('created_at', { ascending: false })
           ]);
 
-          const firstError = chargesResult.error || paymentsResult.error || submissionsResult.error || maintenanceResult.error;
+          const firstError = chargesResult.error || paymentsResult.error || submissionsResult.error || maintenanceResult.error || inspectionsResult.error;
           if (firstError) {
             this.tenant.error = firstError.message;
             this.finishDataLoad('tenant', this.tenant);
@@ -15379,6 +16020,17 @@
           this.tenant.payments = (paymentsResult.data || []).map(payment => this.normalizePayment(payment));
           this.tenant.paymentSubmissions = submissionsResult.data || [];
           this.tenant.maintenanceRequests = maintenanceResult.data || [];
+          this.tenant.inspections = inspectionsResult.data || [];
+          const inspectionIds = this.tenant.inspections.map(inspection => inspection.id);
+          const filesResult = inspectionIds.length
+            ? await supabaseClient.from('inspection_files').select('id, inspection_id, landlord_id, property_id, unit_id, lease_id, tenant_id, file_kind, room_name, caption, object_path, mime_type, file_size, uploaded_by, created_at').in('inspection_id', inspectionIds).order('created_at', { ascending: false })
+            : { data: [], error: null };
+          if (filesResult.error) {
+            this.tenant.error = filesResult.error.message;
+            this.finishDataLoad('tenant', this.tenant);
+            return;
+          }
+          this.tenant.inspectionFiles = filesResult.data || [];
           this.resetTenantForms();
           this.finishDataLoad('tenant', this.tenant);
         },

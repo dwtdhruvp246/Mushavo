@@ -4,6 +4,34 @@
 
 begin;
 
+-- Clean up legacy auth triggers/functions from older RentRadar/Mushavo schema versions.
+-- Old projects may still have handle_new_user() attached to auth.users, and that
+-- function references obsolete tables such as public.account_invitations.
+do $$
+declare
+  legacy_trigger record;
+begin
+  for legacy_trigger in
+    select t.tgname
+    from pg_trigger t
+    join pg_proc p on p.oid = t.tgfoid
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace cn on cn.oid = c.relnamespace
+    where cn.nspname = 'auth'
+      and c.relname = 'users'
+      and p.proname = 'handle_new_user'
+      and not t.tgisinternal
+  loop
+    execute format('drop trigger if exists %I on auth.users', legacy_trigger.tgname);
+  end loop;
+
+  execute 'drop trigger if exists on_auth_user_created on auth.users';
+  execute 'drop trigger if exists handle_new_user on auth.users';
+end $$;
+
+drop function if exists public.handle_new_user();
+drop function if exists auth.handle_new_user();
+
 create extension if not exists pgcrypto;
 
 create or replace function public.generate_six_digit_code()
@@ -32,11 +60,16 @@ create table if not exists public.countries (
   name text not null,
   code text,
   currency_code text,
+  market_enabled_at timestamptz,
+  market_enabled_by uuid,
   created_at timestamptz not null default now(),
   archived_at timestamptz,
   constraint countries_name_unique unique (name),
   constraint countries_code_unique unique (code)
 );
+
+alter table public.countries add column if not exists market_enabled_at timestamptz;
+alter table public.countries add column if not exists market_enabled_by uuid;
 
 create index if not exists countries_created_at_idx on public.countries (created_at desc);
 
@@ -359,8 +392,28 @@ end $$;
 
 do $$
 begin
-  create type public.maintenance_status as enum ('open', 'in_progress', 'resolved');
+  create type public.maintenance_status as enum (
+    'open',
+    'quote_requested',
+    'quote_sent',
+    'approved',
+    'scheduled',
+    'in_progress',
+    'completed',
+    'resolved',
+    'cancelled'
+  );
 exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter type public.maintenance_status add value if not exists 'quote_requested';
+  alter type public.maintenance_status add value if not exists 'quote_sent';
+  alter type public.maintenance_status add value if not exists 'approved';
+  alter type public.maintenance_status add value if not exists 'scheduled';
+  alter type public.maintenance_status add value if not exists 'completed';
+  alter type public.maintenance_status add value if not exists 'cancelled';
 end $$;
 
 do $$
@@ -379,7 +432,10 @@ begin
     'maintenance_new',
     'maintenance_updated',
     'rent_due',
-    'tenant_link_request'
+    'tenant_link_request',
+    'tenant_reference_request',
+    'lease_lifecycle_reminder',
+    'tenant_application_update'
   );
 exception when duplicate_object then null;
 end $$;
@@ -389,6 +445,9 @@ begin
   alter type public.notification_type add value if not exists 'tenant_link_request';
   alter type public.notification_type add value if not exists 'staff_landlord_request';
   alter type public.notification_type add value if not exists 'management_landlord_request';
+  alter type public.notification_type add value if not exists 'tenant_reference_request';
+  alter type public.notification_type add value if not exists 'lease_lifecycle_reminder';
+  alter type public.notification_type add value if not exists 'tenant_application_update';
 end $$;
 
 -- Commit enum changes before functions use newly-added enum values.
@@ -1019,6 +1078,41 @@ create index if not exists partner_payments_management_company_idx on public.par
 create index if not exists partner_payments_landlord_idx on public.partner_payments (landlord_id);
 create index if not exists partner_payments_paid_at_idx on public.partner_payments (paid_at desc);
 
+create table if not exists public.partner_reconciliations (
+  id uuid primary key default gen_random_uuid(),
+  partner_type text not null check (partner_type in ('ipm', 'pmc')),
+  partner_staff_id uuid null references public.profiles(id) on delete set null,
+  management_company_id uuid null references public.management_companies(id) on delete set null,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  period_start date not null,
+  period_end date not null,
+  gross_collected numeric(12,2) not null default 0 check (gross_collected >= 0),
+  management_fee numeric(12,2) not null default 0 check (management_fee >= 0),
+  expenses numeric(12,2) not null default 0 check (expenses >= 0),
+  owner_distribution numeric(12,2) not null default 0 check (owner_distribution >= 0),
+  status text not null default 'sent_for_approval' check (status in ('draft', 'sent_for_approval', 'approved', 'rejected', 'paid')),
+  notes text,
+  submitted_by uuid null references public.profiles(id) on delete set null,
+  reviewed_by uuid null references public.profiles(id) on delete set null,
+  submitted_at timestamptz not null default now(),
+  approved_at timestamptz,
+  rejected_at timestamptz,
+  paid_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint partner_reconciliations_partner_check check (
+    (partner_type = 'ipm' and partner_staff_id is not null and management_company_id is null)
+    or (partner_type = 'pmc' and management_company_id is not null and partner_staff_id is null)
+  ),
+  constraint partner_reconciliations_period_check check (period_end >= period_start)
+);
+
+create index if not exists partner_reconciliations_partner_staff_idx on public.partner_reconciliations (partner_staff_id);
+create index if not exists partner_reconciliations_management_company_idx on public.partner_reconciliations (management_company_id);
+create index if not exists partner_reconciliations_landlord_idx on public.partner_reconciliations (landlord_id);
+create index if not exists partner_reconciliations_status_idx on public.partner_reconciliations (status);
+create index if not exists partner_reconciliations_period_idx on public.partner_reconciliations (period_end desc);
+
 create table if not exists public.management_staff_permissions (
   id uuid primary key default gen_random_uuid(),
   management_company_id uuid not null references public.management_companies(id) on delete cascade,
@@ -1615,6 +1709,107 @@ begin
 exception when duplicate_object then null;
 end $$;
 
+create table if not exists public.lease_charges (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid not null references public.leases(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  charge_type text not null default 'rent',
+  charge_status text not null default 'open',
+  due_date date not null,
+  period_start date,
+  period_end date,
+  description text,
+  amount numeric(12,2) not null check (amount > 0),
+  amount_paid numeric(12,2) not null default 0 check (amount_paid >= 0),
+  created_by uuid null references public.profiles(id) on delete set null,
+  voided_by uuid null references public.profiles(id) on delete set null,
+  voided_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint lease_charges_type_check check (charge_type in ('rent', 'deposit', 'maintenance', 'late_fee', 'other')),
+  constraint lease_charges_status_check check (charge_status in ('open', 'partially_paid', 'paid', 'void')),
+  constraint lease_charges_period_check check (period_end is null or period_start is null or period_end >= period_start),
+  constraint lease_charges_paid_not_over_amount check (amount_paid <= amount)
+);
+
+create index if not exists lease_charges_lease_id_idx on public.lease_charges (lease_id);
+create index if not exists lease_charges_landlord_id_idx on public.lease_charges (landlord_id);
+create index if not exists lease_charges_tenant_id_idx on public.lease_charges (tenant_id);
+create index if not exists lease_charges_status_due_idx on public.lease_charges (charge_status, due_date);
+create unique index if not exists lease_charges_one_rent_period_idx
+  on public.lease_charges (lease_id, period_start)
+  where charge_type = 'rent' and voided_at is null;
+create unique index if not exists lease_charges_one_deposit_idx
+  on public.lease_charges (lease_id)
+  where charge_type = 'deposit' and voided_at is null;
+
+create table if not exists public.payment_allocations (
+  id uuid primary key default gen_random_uuid(),
+  payment_id uuid not null references public.payments(id) on delete cascade,
+  charge_id uuid not null references public.lease_charges(id) on delete cascade,
+  amount numeric(12,2) not null check (amount > 0),
+  created_at timestamptz not null default now(),
+  constraint payment_allocations_payment_charge_unique unique (payment_id, charge_id)
+);
+
+create index if not exists payment_allocations_payment_id_idx on public.payment_allocations (payment_id);
+create index if not exists payment_allocations_charge_id_idx on public.payment_allocations (charge_id);
+
+create table if not exists public.lease_ledger_entries (
+  id uuid primary key default gen_random_uuid(),
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  tenant_id uuid null references public.tenants(id) on delete set null,
+  lease_id uuid null references public.leases(id) on delete set null,
+  unit_id uuid null references public.units(id) on delete set null,
+  property_id uuid null references public.properties(id) on delete set null,
+  entry_type text not null,
+  entry_purpose text not null,
+  debit numeric(12,2) not null default 0 check (debit >= 0),
+  credit numeric(12,2) not null default 0 check (credit >= 0),
+  entry_date date not null default current_date,
+  source_table text,
+  source_id uuid,
+  description text,
+  created_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  constraint lease_ledger_entries_type_check check (entry_type in ('charge', 'payment', 'allocation', 'deposit_liability', 'adjustment', 'reversal')),
+  constraint lease_ledger_entries_purpose_check check (entry_purpose in ('rent', 'deposit', 'maintenance', 'late_fee', 'other')),
+  constraint lease_ledger_entries_amount_check check (debit > 0 or credit > 0)
+);
+
+create index if not exists lease_ledger_entries_landlord_id_idx on public.lease_ledger_entries (landlord_id);
+create index if not exists lease_ledger_entries_tenant_id_idx on public.lease_ledger_entries (tenant_id);
+create index if not exists lease_ledger_entries_lease_id_idx on public.lease_ledger_entries (lease_id);
+create index if not exists lease_ledger_entries_entry_date_idx on public.lease_ledger_entries (entry_date);
+create index if not exists lease_ledger_entries_source_idx on public.lease_ledger_entries (source_table, source_id);
+create unique index if not exists lease_ledger_entries_one_source_entry_idx
+  on public.lease_ledger_entries (source_table, source_id, entry_type)
+  where source_table is not null and source_id is not null;
+
+create table if not exists public.finance_audit_events (
+  id uuid primary key default gen_random_uuid(),
+  actor_profile_id uuid null references public.profiles(id) on delete set null,
+  landlord_id uuid null references public.profiles(id) on delete set null,
+  lease_id uuid null references public.leases(id) on delete set null,
+  target_table text not null,
+  target_id uuid,
+  action text not null,
+  before_data jsonb,
+  after_data jsonb,
+  created_at timestamptz not null default now(),
+  constraint finance_audit_events_action_check check (action in ('insert', 'update', 'delete', 'approve', 'void', 'allocate', 'reconcile'))
+);
+
+create index if not exists finance_audit_events_landlord_id_idx on public.finance_audit_events (landlord_id);
+create index if not exists finance_audit_events_lease_id_idx on public.finance_audit_events (lease_id);
+create index if not exists finance_audit_events_target_idx on public.finance_audit_events (target_table, target_id);
+
+drop trigger if exists lease_charges_touch_updated_at on public.lease_charges;
+create trigger lease_charges_touch_updated_at
+before update on public.lease_charges
+for each row execute function public.touch_updated_at();
+
 create table if not exists public.receipt_counters (
   receipt_year integer primary key,
   last_number integer not null default 0
@@ -1637,23 +1832,42 @@ create table if not exists public.maintenance_requests (
   status public.maintenance_status not null default 'open',
   priority public.priority_level not null default 'medium',
   resolution_notes text,
+  workflow_notes text,
+  scheduled_for timestamptz,
+  final_cost numeric(12,2),
   created_at timestamptz not null default now(),
   resolved_at timestamptz,
+  completed_at timestamptz,
+  completed_by uuid null references public.profiles(id) on delete set null,
+  cancelled_at timestamptz,
+  cancellation_reason text,
+  updated_at timestamptz not null default now(),
   archived_at timestamptz,
   archived_by uuid null references public.profiles(id) on delete set null
 );
-
-create index if not exists maintenance_requests_landlord_id_idx on public.maintenance_requests (landlord_id);
-create index if not exists maintenance_requests_unit_id_idx on public.maintenance_requests (unit_id);
-create index if not exists maintenance_requests_submitted_by_idx on public.maintenance_requests (submitted_by_profile_id);
 
 alter table public.maintenance_requests add column if not exists photo_path text;
 alter table public.maintenance_requests add column if not exists photo_name text;
 alter table public.maintenance_requests add column if not exists photo_size integer;
 alter table public.maintenance_requests add column if not exists photo_uploaded_by uuid null references public.profiles(id) on delete set null;
 alter table public.maintenance_requests add column if not exists photo_uploaded_at timestamptz;
+alter table public.maintenance_requests add column if not exists workflow_notes text;
+alter table public.maintenance_requests add column if not exists scheduled_for timestamptz;
+alter table public.maintenance_requests add column if not exists final_cost numeric(12,2);
+alter table public.maintenance_requests add column if not exists completed_at timestamptz;
+alter table public.maintenance_requests add column if not exists completed_by uuid null references public.profiles(id) on delete set null;
+alter table public.maintenance_requests add column if not exists cancelled_at timestamptz;
+alter table public.maintenance_requests add column if not exists cancellation_reason text;
+alter table public.maintenance_requests add column if not exists updated_at timestamptz not null default now();
 alter table public.maintenance_requests add column if not exists archived_at timestamptz;
 alter table public.maintenance_requests add column if not exists archived_by uuid null references public.profiles(id) on delete set null;
+
+create index if not exists maintenance_requests_landlord_id_idx on public.maintenance_requests (landlord_id);
+create index if not exists maintenance_requests_unit_id_idx on public.maintenance_requests (unit_id);
+create index if not exists maintenance_requests_submitted_by_idx on public.maintenance_requests (submitted_by_profile_id);
+create index if not exists maintenance_requests_status_idx on public.maintenance_requests (status);
+create index if not exists maintenance_requests_scheduled_for_idx on public.maintenance_requests (scheduled_for);
+
 do $$
 begin
   alter table public.maintenance_requests
@@ -1661,6 +1875,124 @@ begin
     check (photo_size is null or photo_size > 0);
 exception when duplicate_object then null;
 end $$;
+
+do $$
+begin
+  alter table public.maintenance_requests
+    add constraint maintenance_requests_final_cost_check
+    check (final_cost is null or final_cost >= 0);
+exception when duplicate_object then null;
+end $$;
+
+create table if not exists public.maintenance_quotes (
+  id uuid primary key default gen_random_uuid(),
+  maintenance_request_id uuid not null references public.maintenance_requests(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  vendor_name text not null,
+  vendor_phone text,
+  vendor_email text,
+  amount numeric(12,2) not null check (amount > 0),
+  currency_code text not null default 'USD',
+  notes text,
+  status text not null default 'sent_for_approval' check (status in ('sent_for_approval', 'approved', 'rejected', 'cancelled')),
+  requested_by uuid null references public.profiles(id) on delete set null,
+  reviewed_by uuid null references public.profiles(id) on delete set null,
+  submitted_at timestamptz not null default now(),
+  approved_at timestamptz,
+  rejected_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists maintenance_quotes_request_idx on public.maintenance_quotes (maintenance_request_id);
+create index if not exists maintenance_quotes_landlord_idx on public.maintenance_quotes (landlord_id);
+create index if not exists maintenance_quotes_unit_idx on public.maintenance_quotes (unit_id);
+create index if not exists maintenance_quotes_status_idx on public.maintenance_quotes (status);
+create index if not exists maintenance_quotes_submitted_idx on public.maintenance_quotes (submitted_at desc);
+
+create table if not exists public.maintenance_activity (
+  id uuid primary key default gen_random_uuid(),
+  maintenance_request_id uuid not null references public.maintenance_requests(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  actor_profile_id uuid null references public.profiles(id) on delete set null,
+  activity_type text not null,
+  title text not null,
+  body text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists maintenance_activity_request_idx on public.maintenance_activity (maintenance_request_id);
+create index if not exists maintenance_activity_landlord_idx on public.maintenance_activity (landlord_id);
+create index if not exists maintenance_activity_created_idx on public.maintenance_activity (created_at desc);
+
+create table if not exists public.property_inspections (
+  id uuid primary key default gen_random_uuid(),
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  lease_id uuid null references public.leases(id) on delete set null,
+  tenant_id uuid null references public.tenants(id) on delete set null,
+  maintenance_request_id uuid null references public.maintenance_requests(id) on delete set null,
+  inspection_type text not null default 'routine',
+  status text not null default 'draft',
+  scheduled_for date,
+  inspected_at timestamptz,
+  inspector_profile_id uuid null references public.profiles(id) on delete set null,
+  tenant_signature_name text,
+  tenant_signed_at timestamptz,
+  meter_readings jsonb not null default '{}'::jsonb,
+  room_conditions jsonb not null default '[]'::jsonb,
+  summary_notes text,
+  deposit_deduction_amount numeric(12,2) not null default 0,
+  deposit_deduction_notes text,
+  compared_to_inspection_id uuid null references public.property_inspections(id) on delete set null,
+  locked_at timestamptz,
+  locked_by uuid null references public.profiles(id) on delete set null,
+  created_by uuid null references public.profiles(id) on delete set null,
+  updated_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint property_inspections_type_check check (inspection_type in ('move_in', 'routine', 'move_out')),
+  constraint property_inspections_status_check check (status in ('draft', 'completed', 'locked')),
+  constraint property_inspections_deduction_check check (deposit_deduction_amount >= 0)
+);
+
+create index if not exists property_inspections_landlord_idx on public.property_inspections (landlord_id);
+create index if not exists property_inspections_property_idx on public.property_inspections (property_id);
+create index if not exists property_inspections_unit_idx on public.property_inspections (unit_id);
+create index if not exists property_inspections_lease_idx on public.property_inspections (lease_id);
+create index if not exists property_inspections_tenant_idx on public.property_inspections (tenant_id);
+create index if not exists property_inspections_type_idx on public.property_inspections (inspection_type);
+create index if not exists property_inspections_status_idx on public.property_inspections (status);
+create index if not exists property_inspections_scheduled_idx on public.property_inspections (scheduled_for);
+
+create table if not exists public.inspection_files (
+  id uuid primary key default gen_random_uuid(),
+  inspection_id uuid not null references public.property_inspections(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  lease_id uuid null references public.leases(id) on delete set null,
+  tenant_id uuid null references public.tenants(id) on delete set null,
+  file_kind text not null default 'photo',
+  room_name text,
+  caption text,
+  object_path text not null unique,
+  mime_type text,
+  file_size bigint,
+  uploaded_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  constraint inspection_files_kind_check check (file_kind in ('photo', 'video', 'document', 'signature', 'deduction_evidence')),
+  constraint inspection_files_size_check check (file_size is null or file_size > 0)
+);
+
+create index if not exists inspection_files_inspection_idx on public.inspection_files (inspection_id);
+create index if not exists inspection_files_landlord_idx on public.inspection_files (landlord_id);
+create index if not exists inspection_files_unit_idx on public.inspection_files (unit_id);
+create index if not exists inspection_files_tenant_idx on public.inspection_files (tenant_id);
+create index if not exists inspection_files_created_idx on public.inspection_files (created_at desc);
 
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -1686,6 +2018,117 @@ end $$;
 create index if not exists notifications_profile_id_idx on public.notifications (profile_id, is_read, created_at desc);
 create index if not exists notifications_landlord_id_idx on public.notifications (landlord_id);
 create index if not exists notifications_related_idx on public.notifications (type, related_id);
+
+create table if not exists public.tenant_applications (
+  id uuid primary key default gen_random_uuid(),
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  property_id uuid null references public.properties(id) on delete set null,
+  unit_id uuid null references public.units(id) on delete set null,
+  tenant_id uuid null references public.tenants(id) on delete set null,
+  applicant_name text not null,
+  applicant_email text not null,
+  applicant_phone text,
+  applicant_id_number text,
+  status text not null default 'submitted',
+  notes text,
+  submitted_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint tenant_applications_status_check check (status in ('submitted', 'reviewing', 'approved', 'rejected', 'withdrawn'))
+);
+
+create index if not exists tenant_applications_landlord_idx on public.tenant_applications (landlord_id, status, created_at desc);
+create index if not exists tenant_applications_tenant_idx on public.tenant_applications (tenant_id);
+create index if not exists tenant_applications_email_idx on public.tenant_applications (lower(applicant_email));
+
+create table if not exists public.tenant_documents (
+  id uuid primary key default gen_random_uuid(),
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  lease_id uuid null references public.leases(id) on delete cascade,
+  document_type text not null default 'other',
+  title text not null,
+  file_path text not null,
+  file_name text not null,
+  file_size integer,
+  notes text,
+  uploaded_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint tenant_documents_type_check check (document_type in ('identity', 'proof_of_income', 'lease_support', 'move_in', 'move_out', 'reference', 'other')),
+  constraint tenant_documents_file_size_check check (file_size is null or file_size > 0)
+);
+
+create index if not exists tenant_documents_landlord_idx on public.tenant_documents (landlord_id, created_at desc);
+create index if not exists tenant_documents_tenant_idx on public.tenant_documents (tenant_id, created_at desc);
+create index if not exists tenant_documents_lease_idx on public.tenant_documents (lease_id);
+
+create table if not exists public.lease_lifecycle_items (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid not null references public.leases(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  category text not null,
+  title text not null,
+  notes text,
+  due_date date,
+  is_done boolean not null default false,
+  completed_at timestamptz,
+  completed_by uuid null references public.profiles(id) on delete set null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint lease_lifecycle_items_category_check check (category in ('lease_generation', 'move_in', 'renewal', 'expiry', 'move_out'))
+);
+
+create index if not exists lease_lifecycle_items_lease_idx on public.lease_lifecycle_items (lease_id, category, sort_order);
+create index if not exists lease_lifecycle_items_landlord_idx on public.lease_lifecycle_items (landlord_id, due_date);
+create unique index if not exists lease_lifecycle_items_unique_template_idx
+  on public.lease_lifecycle_items (lease_id, category, title);
+
+create table if not exists public.deposit_settlements (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid not null unique references public.leases(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  deposit_amount numeric(12,2) not null default 0 check (deposit_amount >= 0),
+  deductions_amount numeric(12,2) not null default 0 check (deductions_amount >= 0),
+  refund_amount numeric(12,2) not null default 0 check (refund_amount >= 0),
+  status text not null default 'not_started',
+  notes text,
+  tenant_notes text,
+  settled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint deposit_settlements_status_check check (status in ('not_started', 'draft', 'tenant_review', 'approved', 'paid', 'disputed'))
+);
+
+create index if not exists deposit_settlements_landlord_idx on public.deposit_settlements (landlord_id, status);
+create index if not exists deposit_settlements_tenant_idx on public.deposit_settlements (tenant_id);
+create unique index if not exists deposit_settlements_lease_unique_idx on public.deposit_settlements (lease_id);
+
+create table if not exists public.tenant_reference_requests (
+  id uuid primary key default gen_random_uuid(),
+  lease_id uuid not null references public.leases(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  requester_name text not null,
+  requester_email text not null,
+  purpose text,
+  consent_status text not null default 'pending',
+  response_notes text,
+  requested_at timestamptz not null default now(),
+  responded_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint tenant_reference_requests_consent_check check (consent_status in ('pending', 'approved', 'rejected', 'withdrawn'))
+);
+
+create index if not exists tenant_reference_requests_landlord_idx on public.tenant_reference_requests (landlord_id, consent_status, requested_at desc);
+create index if not exists tenant_reference_requests_tenant_idx on public.tenant_reference_requests (tenant_id, requested_at desc);
+create index if not exists tenant_reference_requests_lease_idx on public.tenant_reference_requests (lease_id);
 
 create table if not exists public.telegram_link_tokens (
   id uuid primary key default gen_random_uuid(),
@@ -1744,6 +2187,53 @@ create trigger landlord_subscriptions_touch_updated_at
 before update on public.landlord_subscriptions
 for each row execute function public.touch_updated_at();
 
+drop trigger if exists partner_reconciliations_touch_updated_at on public.partner_reconciliations;
+create trigger partner_reconciliations_touch_updated_at
+before update on public.partner_reconciliations
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists maintenance_quotes_touch_updated_at on public.maintenance_quotes;
+create trigger maintenance_quotes_touch_updated_at
+before update on public.maintenance_quotes
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists maintenance_requests_touch_updated_at on public.maintenance_requests;
+create trigger maintenance_requests_touch_updated_at
+before update on public.maintenance_requests
+for each row execute function public.touch_updated_at();
+
+create or replace function public.prevent_locked_inspection_changes()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.status = 'locked' then
+      raise exception 'Locked inspection records cannot be deleted.';
+    end if;
+    return old;
+  end if;
+
+  if old.status = 'locked' then
+    raise exception 'Locked inspection records cannot be changed.';
+  end if;
+
+  if new.status = 'locked' and old.status <> 'locked' then
+    new.locked_at := coalesce(new.locked_at, now());
+    new.locked_by := coalesce(new.locked_by, auth.uid());
+  end if;
+
+  new.updated_at := now();
+  new.updated_by := coalesce(auth.uid(), new.updated_by);
+  return new;
+end;
+$$;
+
+drop trigger if exists property_inspections_lock_guard on public.property_inspections;
+create trigger property_inspections_lock_guard
+before update or delete on public.property_inspections
+for each row execute function public.prevent_locked_inspection_changes();
+
 create or replace function public.assign_enquiry_country_id()
 returns trigger
 language plpgsql
@@ -1786,6 +2276,31 @@ for each row execute function public.touch_updated_at();
 drop trigger if exists admin_notes_touch_updated_at on public.admin_notes;
 create trigger admin_notes_touch_updated_at
 before update on public.admin_notes
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists tenant_applications_touch_updated_at on public.tenant_applications;
+create trigger tenant_applications_touch_updated_at
+before update on public.tenant_applications
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists tenant_documents_touch_updated_at on public.tenant_documents;
+create trigger tenant_documents_touch_updated_at
+before update on public.tenant_documents
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists lease_lifecycle_items_touch_updated_at on public.lease_lifecycle_items;
+create trigger lease_lifecycle_items_touch_updated_at
+before update on public.lease_lifecycle_items
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists deposit_settlements_touch_updated_at on public.deposit_settlements;
+create trigger deposit_settlements_touch_updated_at
+before update on public.deposit_settlements
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists tenant_reference_requests_touch_updated_at on public.tenant_reference_requests;
+create trigger tenant_reference_requests_touch_updated_at
+before update on public.tenant_reference_requests
 for each row execute function public.touch_updated_at();
 
 drop trigger if exists profiles_assign_landlord_code on public.profiles;
@@ -2312,6 +2827,75 @@ begin
 end;
 $$;
 
+-- Fresh database bootstrap placeholder.
+-- Some RLS policies below reference management_permission_flag(text) before the
+-- full implementation is declared later in the file. On an existing database
+-- this already existed, but after wiping Supabase the policy creation fails.
+-- The real function body later replaces this placeholder with CREATE OR REPLACE.
+create or replace function public.management_permission_flag(flag_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select false
+$$;
+
+create or replace function public.management_can_access_property(p_property_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select false
+$$;
+
+create or replace function public.management_can_access_unit(p_unit_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select false
+$$;
+
+create or replace function public.management_can_access_lease(p_lease_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select false
+$$;
+
+create or replace function public.management_can_access_tenant(p_tenant_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select false
+$$;
+
+create or replace function public.tenant_link_allowed(
+  p_tenant_id uuid,
+  p_landlord_id uuid,
+  p_email text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select false
+$$;
+
 create or replace function public.staff_can_access_property(p_property_id uuid)
 returns boolean
 language sql
@@ -2456,6 +3040,100 @@ as $$
       and split_part(p_object_name, '/', 1) = l.landlord_id::text
       and (
         l.landlord_id = auth.uid()
+        or (
+          public.current_profile_role() = 'staff'
+          and public.staff_permission_flag('can_upload_lease_documents')
+          and public.staff_can_access_lease(l.id)
+        )
+        or (
+          public.current_profile_role() in ('management_leader', 'management_staff')
+          and public.management_permission_flag('can_upload_lease_documents')
+          and public.management_can_access_lease(l.id)
+        )
+      )
+  )
+$$;
+
+create or replace function public.tenant_document_tenant_id(p_object_name text)
+returns uuid
+language plpgsql
+immutable
+as $$
+declare
+  tenant_uuid uuid;
+begin
+  tenant_uuid := nullif(split_part(p_object_name, '/', 1), '')::uuid;
+  return tenant_uuid;
+exception when others then
+  return null;
+end;
+$$;
+
+create or replace function public.tenant_document_lease_id(p_object_name text)
+returns uuid
+language plpgsql
+immutable
+as $$
+declare
+  lease_uuid uuid;
+begin
+  lease_uuid := nullif(split_part(p_object_name, '/', 2), '')::uuid;
+  return lease_uuid;
+exception when others then
+  return null;
+end;
+$$;
+
+create or replace function public.can_read_tenant_document(p_object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.leases l
+    join public.tenants t on t.id = l.tenant_id
+    where l.id = public.tenant_document_lease_id(p_object_name)
+      and t.id = public.tenant_document_tenant_id(p_object_name)
+      and (
+        l.landlord_id = auth.uid()
+        or public.is_super_admin()
+        or public.admin_staff_can_access_landlord(l.landlord_id)
+        or t.profile_id = auth.uid()
+        or (
+          public.current_profile_role() = 'staff'
+          and public.staff_permission_flag('can_view_lease_documents')
+          and public.staff_can_access_lease(l.id)
+        )
+        or (
+          public.current_profile_role() in ('management_leader', 'management_staff')
+          and public.management_permission_flag('can_view_lease_documents')
+          and public.management_can_access_lease(l.id)
+        )
+      )
+  )
+$$;
+
+create or replace function public.can_manage_tenant_document(p_object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.leases l
+    join public.tenants t on t.id = l.tenant_id
+    where l.id = public.tenant_document_lease_id(p_object_name)
+      and t.id = public.tenant_document_tenant_id(p_object_name)
+      and (
+        l.landlord_id = auth.uid()
+        or public.is_super_admin()
+        or public.admin_staff_can_access_landlord(l.landlord_id)
+        or t.profile_id = auth.uid()
         or (
           public.current_profile_role() = 'staff'
           and public.staff_permission_flag('can_upload_lease_documents')
@@ -2657,6 +3335,176 @@ as $$
         or mr.submitted_by_profile_id = auth.uid()
       )
   )
+$$;
+
+create or replace function public.inspection_file_inspection_id(p_object_name text)
+returns uuid
+language plpgsql
+immutable
+as $$
+declare
+  inspection_uuid uuid;
+begin
+  inspection_uuid := nullif(split_part(p_object_name, '/', 2), '')::uuid;
+  return inspection_uuid;
+exception when others then
+  return null;
+end;
+$$;
+
+create or replace function public.can_access_inspection(p_inspection_id uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  inspection_row public.property_inspections%rowtype;
+begin
+  select *
+  into inspection_row
+  from public.property_inspections
+  where id = p_inspection_id;
+
+  if not found then
+    return false;
+  end if;
+
+  if public.is_super_admin()
+     or public.admin_staff_can_access_unit(inspection_row.unit_id)
+     or inspection_row.landlord_id = auth.uid()
+     or public.staff_can_access_unit(inspection_row.unit_id)
+     or public.management_can_access_unit(inspection_row.unit_id) then
+    return true;
+  end if;
+
+  return exists (
+    select 1
+    from public.tenants t
+    where t.id = inspection_row.tenant_id
+      and t.profile_id = auth.uid()
+      and coalesce(t.archived, false) = false
+  );
+end;
+$$;
+
+create or replace function public.can_manage_inspection(p_inspection_id uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  inspection_row public.property_inspections%rowtype;
+begin
+  select *
+  into inspection_row
+  from public.property_inspections
+  where id = p_inspection_id;
+
+  if not found then
+    return false;
+  end if;
+
+  return (
+    public.is_super_admin()
+    or public.admin_staff_can_access_unit(inspection_row.unit_id)
+    or inspection_row.landlord_id = auth.uid()
+    or (
+      public.current_profile_role() = 'staff'
+      and public.staff_can_access_unit(inspection_row.unit_id)
+      and (
+        public.staff_permission_flag('can_manage_maintenance')
+        or public.staff_permission_flag('can_create_maintenance')
+        or public.staff_permission_flag('can_add_resolution_notes')
+      )
+    )
+    or (
+      public.current_profile_role() in ('management_leader', 'management_staff')
+      and public.management_can_access_unit(inspection_row.unit_id)
+      and (
+        public.management_permission_flag('can_manage_maintenance')
+        or public.management_permission_flag('can_create_maintenance')
+        or public.management_permission_flag('can_add_resolution_notes')
+      )
+    )
+  );
+end;
+$$;
+
+create or replace function public.can_read_inspection_file(p_object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.property_inspections pi
+    where pi.id = public.inspection_file_inspection_id(p_object_name)
+      and split_part(p_object_name, '/', 1) = pi.landlord_id::text
+      and public.can_access_inspection(pi.id)
+  )
+$$;
+
+create or replace function public.can_manage_inspection_file(p_object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.property_inspections pi
+    where pi.id = public.inspection_file_inspection_id(p_object_name)
+      and split_part(p_object_name, '/', 1) = pi.landlord_id::text
+      and pi.status <> 'locked'
+      and public.can_manage_inspection(pi.id)
+  )
+$$;
+
+create or replace function public.tenant_sign_inspection(
+  p_inspection_id uuid,
+  p_signature_name text
+)
+returns public.property_inspections
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  signed_row public.property_inspections%rowtype;
+begin
+  if nullif(trim(p_signature_name), '') is null then
+    raise exception 'Please enter the tenant signature name.';
+  end if;
+
+  update public.property_inspections pi
+  set tenant_signature_name = trim(p_signature_name),
+      tenant_signed_at = now(),
+      updated_at = now(),
+      updated_by = auth.uid()
+  where pi.id = p_inspection_id
+    and pi.status <> 'locked'
+    and exists (
+      select 1
+      from public.tenants t
+      where t.id = pi.tenant_id
+        and t.profile_id = auth.uid()
+        and coalesce(t.archived, false) = false
+    )
+  returning * into signed_row;
+
+  if not found then
+    raise exception 'Inspection could not be signed.';
+  end if;
+
+  return signed_row;
+end;
 $$;
 
 create or replace function public.profile_insert_allowed(
@@ -5372,6 +6220,617 @@ create trigger payments_mark_lease_deposit_paid
 after insert or update of lease_id, payment_purpose on public.payments
 for each row execute function public.mark_lease_deposit_paid_from_payment();
 
+create or replace function public.current_user_can_access_lease_finance(p_lease_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.leases l
+    join public.tenants t on t.id = l.tenant_id
+    where l.id = p_lease_id
+      and (
+        public.is_super_admin()
+        or public.admin_staff_can_access_lease(l.id)
+        or l.landlord_id = auth.uid()
+        or t.profile_id = auth.uid()
+        or (
+          public.current_profile_role() = 'staff'
+          and (public.staff_permission_flag('can_view_payments') or public.staff_permission_flag('can_verify_payments') or public.staff_permission_flag('can_view_finance'))
+          and public.staff_can_access_lease(l.id)
+        )
+        or (
+          public.current_profile_role() in ('management_leader', 'management_staff')
+          and (public.management_permission_flag('can_view_payments') or public.management_permission_flag('can_verify_payments') or public.management_permission_flag('can_view_finance'))
+          and public.management_can_access_lease(l.id)
+        )
+      )
+  )
+$$;
+
+create or replace function public.current_user_can_manage_lease_finance(p_lease_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.leases l
+    where l.id = p_lease_id
+      and (
+        public.is_super_admin()
+        or public.admin_staff_can_access_lease(l.id)
+        or l.landlord_id = auth.uid()
+        or (
+          public.current_profile_role() = 'staff'
+          and (public.staff_permission_flag('can_log_payments') or public.staff_permission_flag('can_verify_payments'))
+          and public.staff_can_access_lease(l.id)
+        )
+        or (
+          public.current_profile_role() in ('management_leader', 'management_staff')
+          and (public.management_permission_flag('can_log_payments') or public.management_permission_flag('can_verify_payments'))
+          and public.management_can_access_lease(l.id)
+        )
+      )
+  )
+$$;
+
+create or replace function public.recalculate_charge_paid(p_charge_id uuid)
+returns public.lease_charges
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  total_paid numeric(12,2);
+  updated_charge public.lease_charges;
+begin
+  select coalesce(sum(pa.amount), 0)
+  into total_paid
+  from public.payment_allocations pa
+  where pa.charge_id = p_charge_id;
+
+  update public.lease_charges lc
+  set
+    amount_paid = least(total_paid, lc.amount),
+    charge_status = case
+      when lc.voided_at is not null then 'void'
+      when least(total_paid, lc.amount) <= 0 then 'open'
+      when least(total_paid, lc.amount) >= lc.amount then 'paid'
+      else 'partially_paid'
+    end,
+    updated_at = now()
+  where lc.id = p_charge_id
+  returning * into updated_charge;
+
+  return updated_charge;
+end;
+$$;
+
+create or replace function public.ensure_rent_charges_for_lease(
+  p_lease_id uuid,
+  p_through_date date default current_date
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lease_row public.leases;
+  month_start date;
+  target_month date;
+  inserted_count integer := 0;
+begin
+  select * into lease_row
+  from public.leases
+  where id = p_lease_id;
+
+  if lease_row.id is null then
+    raise exception 'Lease was not found.';
+  end if;
+
+  if not public.current_user_can_manage_lease_finance(p_lease_id) then
+    raise exception 'You do not have permission to prepare rent charges for this lease.';
+  end if;
+
+  month_start := date_trunc('month', lease_row.start_date)::date;
+  target_month := date_trunc('month', least(lease_row.end_date, coalesce(p_through_date, current_date)))::date;
+
+  if target_month < month_start then
+    return 0;
+  end if;
+
+  insert into public.lease_charges (
+    lease_id,
+    landlord_id,
+    tenant_id,
+    charge_type,
+    charge_status,
+    due_date,
+    period_start,
+    period_end,
+    description,
+    amount,
+    created_by
+  )
+  select
+    lease_row.id,
+    lease_row.landlord_id,
+    lease_row.tenant_id,
+    'rent',
+    'open',
+    greatest(gs.month_date::date, lease_row.start_date),
+    greatest(gs.month_date::date, lease_row.start_date),
+    least((gs.month_date + interval '1 month - 1 day')::date, lease_row.end_date),
+    to_char(gs.month_date, 'Mon YYYY') || ' rent',
+    lease_row.monthly_rent,
+    auth.uid()
+  from generate_series(month_start, target_month, interval '1 month') as gs(month_date)
+  where lease_row.monthly_rent > 0
+  on conflict do nothing;
+
+  get diagnostics inserted_count = row_count;
+
+  insert into public.lease_ledger_entries (
+    landlord_id,
+    tenant_id,
+    lease_id,
+    unit_id,
+    property_id,
+    entry_type,
+    entry_purpose,
+    debit,
+    entry_date,
+    source_table,
+    source_id,
+    description,
+    created_by
+  )
+  select
+    lc.landlord_id,
+    lc.tenant_id,
+    lc.lease_id,
+    l.unit_id,
+    u.property_id,
+    'charge',
+    'rent',
+    lc.amount,
+    lc.due_date,
+    'lease_charges',
+    lc.id,
+    lc.description,
+    lc.created_by
+  from public.lease_charges lc
+  join public.leases l on l.id = lc.lease_id
+  join public.units u on u.id = l.unit_id
+  where lc.lease_id = lease_row.id
+    and lc.charge_type = 'rent'
+    and not exists (
+      select 1
+      from public.lease_ledger_entries e
+      where e.source_table = 'lease_charges'
+        and e.source_id = lc.id
+        and e.entry_type = 'charge'
+    );
+
+  return inserted_count;
+end;
+$$;
+
+create or replace function public.ensure_deposit_charge_for_lease(p_lease_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lease_row public.leases;
+  charge_id uuid;
+begin
+  if not public.current_user_can_manage_lease_finance(p_lease_id) then
+    raise exception 'You do not have permission to prepare deposit charges for this lease.';
+  end if;
+
+  select * into lease_row
+  from public.leases
+  where id = p_lease_id;
+
+  if lease_row.id is null or coalesce(lease_row.deposit_amount, 0) <= 0 then
+    return null;
+  end if;
+
+  select id into charge_id
+  from public.lease_charges
+  where lease_id = p_lease_id
+    and charge_type = 'deposit'
+    and voided_at is null
+  limit 1;
+
+  if charge_id is null then
+    insert into public.lease_charges (
+      lease_id,
+      landlord_id,
+      tenant_id,
+      charge_type,
+      charge_status,
+      due_date,
+      description,
+      amount,
+      created_by
+    )
+    values (
+      lease_row.id,
+      lease_row.landlord_id,
+      lease_row.tenant_id,
+      'deposit',
+      'open',
+      lease_row.start_date,
+      'Refundable security deposit',
+      lease_row.deposit_amount,
+      auth.uid()
+    )
+    returning id into charge_id;
+  end if;
+
+  insert into public.lease_ledger_entries (
+    landlord_id,
+    tenant_id,
+    lease_id,
+    unit_id,
+    property_id,
+    entry_type,
+    entry_purpose,
+    debit,
+    entry_date,
+    source_table,
+    source_id,
+    description,
+    created_by
+  )
+  select
+    lc.landlord_id,
+    lc.tenant_id,
+    lc.lease_id,
+    l.unit_id,
+    u.property_id,
+    'charge',
+    'deposit',
+    lc.amount,
+    lc.due_date,
+    'lease_charges',
+    lc.id,
+    lc.description,
+    lc.created_by
+  from public.lease_charges lc
+  join public.leases l on l.id = lc.lease_id
+  join public.units u on u.id = l.unit_id
+  where lc.id = charge_id
+  on conflict do nothing;
+
+  return charge_id;
+end;
+$$;
+
+create or replace function public.allocate_payment_to_charge(
+  p_payment_id uuid,
+  p_charge_id uuid,
+  p_amount numeric default null
+)
+returns public.payment_allocations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  payment_row public.payments;
+  charge_row public.lease_charges;
+  already_allocated numeric(12,2);
+  amount_to_allocate numeric(12,2);
+  allocation_row public.payment_allocations;
+begin
+  select * into payment_row
+  from public.payments
+  where id = p_payment_id;
+
+  select * into charge_row
+  from public.lease_charges
+  where id = p_charge_id;
+
+  if payment_row.id is null or charge_row.id is null then
+    raise exception 'Payment or charge was not found.';
+  end if;
+
+  if payment_row.lease_id <> charge_row.lease_id then
+    raise exception 'Payment and charge belong to different leases.';
+  end if;
+
+  if not public.current_user_can_manage_lease_finance(payment_row.lease_id) then
+    raise exception 'You do not have permission to allocate this payment.';
+  end if;
+
+  select coalesce(sum(amount), 0)
+  into already_allocated
+  from public.payment_allocations
+  where payment_id = payment_row.id
+    and charge_id <> charge_row.id;
+
+  amount_to_allocate := coalesce(
+    p_amount,
+    least(payment_row.amount_paid - already_allocated, charge_row.amount - charge_row.amount_paid)
+  );
+
+  if amount_to_allocate <= 0 then
+    raise exception 'There is no remaining amount to allocate.';
+  end if;
+
+  if amount_to_allocate > payment_row.amount_paid - already_allocated then
+    raise exception 'Allocation is higher than the remaining payment amount.';
+  end if;
+
+  if amount_to_allocate > charge_row.amount - charge_row.amount_paid then
+    raise exception 'Allocation is higher than the remaining charge amount.';
+  end if;
+
+  insert into public.payment_allocations (payment_id, charge_id, amount)
+  values (payment_row.id, charge_row.id, amount_to_allocate)
+  on conflict (payment_id, charge_id)
+  do update set amount = excluded.amount
+  returning * into allocation_row;
+
+  perform public.recalculate_charge_paid(charge_row.id);
+
+  insert into public.lease_ledger_entries (
+    landlord_id,
+    tenant_id,
+    lease_id,
+    unit_id,
+    property_id,
+    entry_type,
+    entry_purpose,
+    credit,
+    entry_date,
+    source_table,
+    source_id,
+    description,
+    created_by
+  )
+  select
+    charge_row.landlord_id,
+    charge_row.tenant_id,
+    charge_row.lease_id,
+    l.unit_id,
+    u.property_id,
+    'allocation',
+    charge_row.charge_type,
+    amount_to_allocate,
+    payment_row.payment_date,
+    'payment_allocations',
+    allocation_row.id,
+    'Payment allocated to ' || charge_row.charge_type,
+    auth.uid()
+  from public.leases l
+  join public.units u on u.id = l.unit_id
+  where l.id = charge_row.lease_id
+  on conflict do nothing;
+
+  insert into public.finance_audit_events (
+    actor_profile_id,
+    landlord_id,
+    lease_id,
+    target_table,
+    target_id,
+    action,
+    after_data
+  )
+  values (
+    auth.uid(),
+    charge_row.landlord_id,
+    charge_row.lease_id,
+    'payment_allocations',
+    allocation_row.id,
+    'allocate',
+    to_jsonb(allocation_row)
+  );
+
+  return allocation_row;
+end;
+$$;
+
+create or replace function public.sync_payment_finance_entries()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lease_row record;
+  matching_charge_id uuid;
+  remaining_charge_amount numeric(12,2);
+begin
+  select
+    l.id,
+    l.landlord_id,
+    l.tenant_id,
+    l.unit_id,
+    u.property_id,
+    l.deposit_amount
+  into lease_row
+  from public.leases l
+  join public.units u on u.id = l.unit_id
+  where l.id = new.lease_id;
+
+  if lease_row.id is null then
+    return new;
+  end if;
+
+  insert into public.lease_ledger_entries (
+    landlord_id,
+    tenant_id,
+    lease_id,
+    unit_id,
+    property_id,
+    entry_type,
+    entry_purpose,
+    credit,
+    entry_date,
+    source_table,
+    source_id,
+    description,
+    created_by
+  )
+  values (
+    lease_row.landlord_id,
+    lease_row.tenant_id,
+    new.lease_id,
+    lease_row.unit_id,
+    lease_row.property_id,
+    case when new.payment_purpose = 'deposit' then 'deposit_liability' else 'payment' end,
+    new.payment_purpose,
+    new.amount_paid,
+    new.payment_date,
+    'payments',
+    new.id,
+    coalesce(new.purpose_description, new.rent_period_label, new.notes, new.payment_purpose),
+    new.recorded_by
+  )
+  on conflict do nothing;
+
+  if new.payment_purpose = 'rent' and new.rent_period_start is not null then
+    perform public.ensure_rent_charges_for_lease(new.lease_id, new.rent_period_start);
+
+    select lc.id into matching_charge_id
+    from public.lease_charges lc
+    where lc.lease_id = new.lease_id
+      and lc.charge_type = 'rent'
+      and lc.voided_at is null
+      and date_trunc('month', lc.period_start)::date = date_trunc('month', new.rent_period_start)::date
+    order by lc.period_start desc
+    limit 1;
+
+    if matching_charge_id is not null then
+      select amount - amount_paid
+      into remaining_charge_amount
+      from public.lease_charges
+      where id = matching_charge_id;
+
+      if coalesce(remaining_charge_amount, 0) > 0 then
+        perform public.allocate_payment_to_charge(new.id, matching_charge_id, least(new.amount_paid, remaining_charge_amount));
+      end if;
+    end if;
+  elsif new.payment_purpose = 'deposit' then
+    matching_charge_id := public.ensure_deposit_charge_for_lease(new.lease_id);
+
+    if matching_charge_id is not null then
+      select amount - amount_paid
+      into remaining_charge_amount
+      from public.lease_charges
+      where id = matching_charge_id;
+
+      if coalesce(remaining_charge_amount, 0) > 0 then
+        perform public.allocate_payment_to_charge(new.id, matching_charge_id, least(new.amount_paid, remaining_charge_amount));
+      end if;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists payments_sync_finance_entries on public.payments;
+create trigger payments_sync_finance_entries
+after insert on public.payments
+for each row execute function public.sync_payment_finance_entries();
+
+create or replace function public.audit_finance_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_landlord_id uuid;
+  target_lease_id uuid;
+  target_id uuid;
+begin
+  if tg_table_name = 'lease_charges' then
+    target_landlord_id := coalesce(new.landlord_id, old.landlord_id);
+    target_lease_id := coalesce(new.lease_id, old.lease_id);
+    target_id := coalesce(new.id, old.id);
+  elsif tg_table_name = 'payments' then
+    select l.landlord_id, l.id
+    into target_landlord_id, target_lease_id
+    from public.leases l
+    where l.id = coalesce(new.lease_id, old.lease_id);
+    target_id := coalesce(new.id, old.id);
+  elsif tg_table_name = 'payment_submissions' then
+    select l.landlord_id, l.id
+    into target_landlord_id, target_lease_id
+    from public.leases l
+    where l.id = coalesce(new.lease_id, old.lease_id);
+    target_id := coalesce(new.id, old.id);
+  elsif tg_table_name = 'payment_allocations' then
+    select lc.landlord_id, lc.lease_id
+    into target_landlord_id, target_lease_id
+    from public.lease_charges lc
+    where lc.id = coalesce(new.charge_id, old.charge_id);
+    target_id := coalesce(new.id, old.id);
+  end if;
+
+  insert into public.finance_audit_events (
+    actor_profile_id,
+    landlord_id,
+    lease_id,
+    target_table,
+    target_id,
+    action,
+    before_data,
+    after_data
+  )
+  values (
+    auth.uid(),
+    target_landlord_id,
+    target_lease_id,
+    tg_table_name,
+    target_id,
+    lower(tg_op),
+    case when tg_op in ('UPDATE', 'DELETE') then to_jsonb(old) else null end,
+    case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) else null end
+  );
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists payments_audit_finance_change on public.payments;
+create trigger payments_audit_finance_change
+after insert or update or delete on public.payments
+for each row execute function public.audit_finance_change();
+
+drop trigger if exists payment_submissions_audit_finance_change on public.payment_submissions;
+create trigger payment_submissions_audit_finance_change
+after insert or update or delete on public.payment_submissions
+for each row execute function public.audit_finance_change();
+
+drop trigger if exists lease_charges_audit_finance_change on public.lease_charges;
+create trigger lease_charges_audit_finance_change
+after insert or update or delete on public.lease_charges
+for each row execute function public.audit_finance_change();
+
+drop trigger if exists payment_allocations_audit_finance_change on public.payment_allocations;
+create trigger payment_allocations_audit_finance_change
+after insert or update or delete on public.payment_allocations
+for each row execute function public.audit_finance_change();
+
 create or replace function public.notify_payment_submission_created()
 returns trigger
 language plpgsql
@@ -5484,6 +6943,23 @@ begin
     return new;
   end if;
 
+  if new.status = 'resolved' and new.resolved_at is null then
+    new.resolved_at := now();
+  end if;
+
+  if new.status = 'completed' then
+    if new.completed_at is null then
+      new.completed_at := now();
+    end if;
+    if new.completed_by is null then
+      new.completed_by := auth.uid();
+    end if;
+  end if;
+
+  if new.status = 'cancelled' and new.cancelled_at is null then
+    new.cancelled_at := now();
+  end if;
+
   insert into public.notifications (profile_id, landlord_id, type, message, related_id)
   values (
     new.submitted_by_profile_id,
@@ -5493,10 +6969,6 @@ begin
     new.id
   );
 
-  if new.status = 'resolved' and new.resolved_at is null then
-    new.resolved_at := now();
-  end if;
-
   return new;
 end;
 $$;
@@ -5505,6 +6977,255 @@ drop trigger if exists maintenance_requests_notify_status_updated on public.main
 create trigger maintenance_requests_notify_status_updated
 before update of status on public.maintenance_requests
 for each row execute function public.notify_maintenance_status_updated();
+
+create or replace function public.record_maintenance_request_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      body
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      new.submitted_by_profile_id,
+      'created',
+      'Maintenance request created',
+      new.description
+    );
+    return new;
+  end if;
+
+  if old.status is distinct from new.status then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      body,
+      metadata
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'status_changed',
+      'Status changed to ' || replace(new.status::text, '_', ' '),
+      null,
+      jsonb_build_object('from', old.status::text, 'to', new.status::text)
+    );
+  end if;
+
+  if old.assigned_to_staff_id is distinct from new.assigned_to_staff_id then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      metadata
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'assigned',
+      case when new.assigned_to_staff_id is null then 'Staff assignment removed' else 'Staff assigned' end,
+      jsonb_build_object('assigned_to_staff_id', new.assigned_to_staff_id)
+    );
+  end if;
+
+  if old.scheduled_for is distinct from new.scheduled_for and new.scheduled_for is not null then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      metadata
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'scheduled',
+      'Maintenance scheduled',
+      jsonb_build_object('scheduled_for', new.scheduled_for)
+    );
+  end if;
+
+  if old.final_cost is distinct from new.final_cost and new.final_cost is not null then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      metadata
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'final_cost_updated',
+      'Final cost updated',
+      jsonb_build_object('final_cost', new.final_cost)
+    );
+  end if;
+
+  if old.completed_at is distinct from new.completed_at and new.completed_at is not null then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      coalesce(new.completed_by, auth.uid()),
+      'completed',
+      'Maintenance completed'
+    );
+  end if;
+
+  if old.cancelled_at is distinct from new.cancelled_at and new.cancelled_at is not null then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      body
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'cancelled',
+      'Maintenance cancelled',
+      new.cancellation_reason
+    );
+  end if;
+
+  if old.resolution_notes is distinct from new.resolution_notes and new.resolution_notes is not null then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      body
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'notes_updated',
+      'Resolution notes updated',
+      new.resolution_notes
+    );
+  end if;
+
+  if old.workflow_notes is distinct from new.workflow_notes and new.workflow_notes is not null then
+    insert into public.maintenance_activity (
+      maintenance_request_id,
+      landlord_id,
+      actor_profile_id,
+      activity_type,
+      title,
+      body
+    )
+    values (
+      new.id,
+      new.landlord_id,
+      auth.uid(),
+      'workflow_notes_updated',
+      'Work notes updated',
+      new.workflow_notes
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists maintenance_requests_record_activity on public.maintenance_requests;
+create trigger maintenance_requests_record_activity
+after insert or update on public.maintenance_requests
+for each row execute function public.record_maintenance_request_activity();
+
+create or replace function public.sync_maintenance_quote_workflow()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_status public.maintenance_status;
+  activity_title text;
+begin
+  if tg_op = 'INSERT' then
+    next_status := 'quote_sent';
+    activity_title := 'Vendor quote sent for approval';
+  elsif old.status is distinct from new.status and new.status = 'approved' then
+    next_status := 'approved';
+    activity_title := 'Vendor quote approved';
+  elsif old.status is distinct from new.status and new.status = 'rejected' then
+    next_status := 'quote_requested';
+    activity_title := 'Vendor quote rejected';
+  else
+    return new;
+  end if;
+
+  update public.maintenance_requests
+  set status = next_status
+  where id = new.maintenance_request_id
+    and status not in ('completed', 'resolved', 'cancelled');
+
+  insert into public.maintenance_activity (
+    maintenance_request_id,
+    landlord_id,
+    actor_profile_id,
+    activity_type,
+    title,
+    body,
+    metadata
+  )
+  values (
+    new.maintenance_request_id,
+    new.landlord_id,
+    coalesce(new.reviewed_by, new.requested_by),
+    'quote_' || new.status,
+    activity_title,
+    new.notes,
+    jsonb_build_object(
+      'quote_id', new.id,
+      'vendor_name', new.vendor_name,
+      'amount', new.amount,
+      'currency_code', new.currency_code
+    )
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists maintenance_quotes_sync_workflow on public.maintenance_quotes;
+create trigger maintenance_quotes_sync_workflow
+after insert or update of status on public.maintenance_quotes
+for each row execute function public.sync_maintenance_quote_workflow();
 
 create or replace function public.check_lease_expiries()
 returns integer
@@ -5685,10 +7406,24 @@ alter table public.tenants enable row level security;
 alter table public.leases enable row level security;
 alter table public.payment_submissions enable row level security;
 alter table public.payments enable row level security;
+alter table public.lease_charges enable row level security;
+alter table public.payment_allocations enable row level security;
+alter table public.lease_ledger_entries enable row level security;
+alter table public.finance_audit_events enable row level security;
 alter table public.partner_payments enable row level security;
+alter table public.partner_reconciliations enable row level security;
 alter table public.receipt_counters enable row level security;
 alter table public.maintenance_requests enable row level security;
+alter table public.maintenance_quotes enable row level security;
+alter table public.maintenance_activity enable row level security;
+alter table public.property_inspections enable row level security;
+alter table public.inspection_files enable row level security;
 alter table public.notifications enable row level security;
+alter table public.tenant_applications enable row level security;
+alter table public.tenant_documents enable row level security;
+alter table public.lease_lifecycle_items enable row level security;
+alter table public.deposit_settlements enable row level security;
+alter table public.tenant_reference_requests enable row level security;
 alter table public.telegram_link_tokens enable row level security;
 
 drop policy if exists "countries super admin all" on public.countries;
@@ -6087,7 +7822,7 @@ using (
       where msp.management_company_id = partner_payments.management_company_id
         and msp.staff_profile_id = auth.uid()
         and msp.status = 'approved'
-        and msp.can_view_finance = true
+        and (msp.can_view_finance = true or msp.can_log_payments = true or msp.can_view_payments = true)
     )
   )
 )
@@ -6111,7 +7846,100 @@ with check (
       where msp.management_company_id = partner_payments.management_company_id
         and msp.staff_profile_id = auth.uid()
         and msp.status = 'approved'
-        and msp.can_view_finance = true
+        and (msp.can_view_finance = true or msp.can_log_payments = true or msp.can_view_payments = true)
+    )
+  )
+);
+
+drop policy if exists "partner reconciliations super admin all" on public.partner_reconciliations;
+create policy "partner reconciliations super admin all"
+on public.partner_reconciliations for all to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
+
+drop policy if exists "partner reconciliations landlord read" on public.partner_reconciliations;
+create policy "partner reconciliations landlord read"
+on public.partner_reconciliations for select to authenticated
+using (landlord_id = auth.uid());
+
+drop policy if exists "partner reconciliations landlord review" on public.partner_reconciliations;
+create policy "partner reconciliations landlord review"
+on public.partner_reconciliations for update to authenticated
+using (landlord_id = auth.uid())
+with check (landlord_id = auth.uid());
+
+drop policy if exists "partner reconciliations ipm own" on public.partner_reconciliations;
+create policy "partner reconciliations ipm own"
+on public.partner_reconciliations for all to authenticated
+using (
+  partner_type = 'ipm'
+  and partner_staff_id = auth.uid()
+  and exists (
+    select 1 from public.staff_permissions sp
+    where sp.staff_profile_id = auth.uid()
+      and sp.landlord_id = partner_reconciliations.landlord_id
+      and sp.status = 'approved'
+  )
+)
+with check (
+  partner_type = 'ipm'
+  and partner_staff_id = auth.uid()
+  and submitted_by = auth.uid()
+  and exists (
+    select 1 from public.staff_permissions sp
+    where sp.staff_profile_id = auth.uid()
+      and sp.landlord_id = partner_reconciliations.landlord_id
+      and sp.status = 'approved'
+  )
+);
+
+drop policy if exists "partner reconciliations pmc own" on public.partner_reconciliations;
+create policy "partner reconciliations pmc own"
+on public.partner_reconciliations for all to authenticated
+using (
+  partner_type = 'pmc'
+  and exists (
+    select 1 from public.management_landlord_permissions mlp
+    where mlp.management_company_id = partner_reconciliations.management_company_id
+      and mlp.landlord_id = partner_reconciliations.landlord_id
+      and mlp.status = 'approved'
+  )
+  and (
+    exists (
+      select 1 from public.management_companies mc
+      where mc.id = partner_reconciliations.management_company_id
+        and mc.leader_profile_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.management_staff_permissions msp
+      where msp.management_company_id = partner_reconciliations.management_company_id
+        and msp.staff_profile_id = auth.uid()
+        and msp.status = 'approved'
+        and (msp.can_view_finance = true or msp.can_log_payments = true or msp.can_view_payments = true)
+    )
+  )
+)
+with check (
+  partner_type = 'pmc'
+  and submitted_by = auth.uid()
+  and exists (
+    select 1 from public.management_landlord_permissions mlp
+    where mlp.management_company_id = partner_reconciliations.management_company_id
+      and mlp.landlord_id = partner_reconciliations.landlord_id
+      and mlp.status = 'approved'
+  )
+  and (
+    exists (
+      select 1 from public.management_companies mc
+      where mc.id = partner_reconciliations.management_company_id
+        and mc.leader_profile_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.management_staff_permissions msp
+      where msp.management_company_id = partner_reconciliations.management_company_id
+        and msp.staff_profile_id = auth.uid()
+        and msp.status = 'approved'
+        and (msp.can_view_finance = true or msp.can_log_payments = true or msp.can_view_payments = true)
     )
   )
 );
@@ -6988,6 +8816,19 @@ set public = excluded.public,
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
+  'tenant-documents',
+  'tenant-documents',
+  false,
+  10485760,
+  array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']::text[]
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
   'payment-proofs',
   'payment-proofs',
   false,
@@ -7006,6 +8847,19 @@ values (
   false,
   10485760,
   array['image/jpeg', 'image/png', 'image/webp']::text[]
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'inspection-files',
+  'inspection-files',
+  false,
+  52428800,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'application/pdf']::text[]
 )
 on conflict (id) do update
 set public = excluded.public,
@@ -7046,6 +8900,42 @@ on storage.objects for delete to authenticated
 using (
   bucket_id = 'lease-documents'
   and public.can_manage_lease_document(name)
+);
+
+drop policy if exists "tenant documents files read scoped" on storage.objects;
+create policy "tenant documents files read scoped"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'tenant-documents'
+  and public.can_read_tenant_document(name)
+);
+
+drop policy if exists "tenant documents files insert scoped" on storage.objects;
+create policy "tenant documents files insert scoped"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'tenant-documents'
+  and public.can_manage_tenant_document(name)
+);
+
+drop policy if exists "tenant documents files update scoped" on storage.objects;
+create policy "tenant documents files update scoped"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'tenant-documents'
+  and public.can_manage_tenant_document(name)
+)
+with check (
+  bucket_id = 'tenant-documents'
+  and public.can_manage_tenant_document(name)
+);
+
+drop policy if exists "tenant documents files delete scoped" on storage.objects;
+create policy "tenant documents files delete scoped"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'tenant-documents'
+  and public.can_manage_tenant_document(name)
 );
 
 drop policy if exists "payment proofs read scoped" on storage.objects;
@@ -7118,6 +9008,42 @@ on storage.objects for delete to authenticated
 using (
   bucket_id = 'maintenance-photos'
   and public.can_manage_maintenance_photo(name)
+);
+
+drop policy if exists "inspection files read scoped" on storage.objects;
+create policy "inspection files read scoped"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'inspection-files'
+  and public.can_read_inspection_file(name)
+);
+
+drop policy if exists "inspection files insert scoped" on storage.objects;
+create policy "inspection files insert scoped"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'inspection-files'
+  and public.can_manage_inspection_file(name)
+);
+
+drop policy if exists "inspection files update scoped" on storage.objects;
+create policy "inspection files update scoped"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'inspection-files'
+  and public.can_manage_inspection_file(name)
+)
+with check (
+  bucket_id = 'inspection-files'
+  and public.can_manage_inspection_file(name)
+);
+
+drop policy if exists "inspection files delete scoped" on storage.objects;
+create policy "inspection files delete scoped"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'inspection-files'
+  and public.can_manage_inspection_file(name)
 );
 
 drop policy if exists "payment submissions landlord all" on public.payment_submissions;
@@ -7257,6 +9183,79 @@ using (
   )
 );
 
+drop policy if exists "lease charges read scoped" on public.lease_charges;
+create policy "lease charges read scoped"
+on public.lease_charges for select to authenticated
+using (public.current_user_can_access_lease_finance(lease_id));
+
+drop policy if exists "lease charges manage scoped" on public.lease_charges;
+create policy "lease charges manage scoped"
+on public.lease_charges for all to authenticated
+using (public.current_user_can_manage_lease_finance(lease_id))
+with check (public.current_user_can_manage_lease_finance(lease_id));
+
+drop policy if exists "payment allocations read scoped" on public.payment_allocations;
+create policy "payment allocations read scoped"
+on public.payment_allocations for select to authenticated
+using (
+  exists (
+    select 1
+    from public.lease_charges lc
+    where lc.id = charge_id
+      and public.current_user_can_access_lease_finance(lc.lease_id)
+  )
+);
+
+drop policy if exists "payment allocations manage scoped" on public.payment_allocations;
+create policy "payment allocations manage scoped"
+on public.payment_allocations for all to authenticated
+using (
+  exists (
+    select 1
+    from public.lease_charges lc
+    where lc.id = charge_id
+      and public.current_user_can_manage_lease_finance(lc.lease_id)
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.lease_charges lc
+    where lc.id = charge_id
+      and public.current_user_can_manage_lease_finance(lc.lease_id)
+  )
+);
+
+drop policy if exists "lease ledger entries read scoped" on public.lease_ledger_entries;
+create policy "lease ledger entries read scoped"
+on public.lease_ledger_entries for select to authenticated
+using (
+  public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or landlord_id = auth.uid()
+  or (lease_id is not null and public.current_user_can_access_lease_finance(lease_id))
+);
+
+drop policy if exists "lease ledger entries insert scoped" on public.lease_ledger_entries;
+create policy "lease ledger entries insert scoped"
+on public.lease_ledger_entries for insert to authenticated
+with check (
+  public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or landlord_id = auth.uid()
+  or (lease_id is not null and public.current_user_can_manage_lease_finance(lease_id))
+);
+
+drop policy if exists "finance audit events read scoped" on public.finance_audit_events;
+create policy "finance audit events read scoped"
+on public.finance_audit_events for select to authenticated
+using (
+  public.is_super_admin()
+  or (landlord_id is not null and public.admin_staff_can_access_landlord(landlord_id))
+  or landlord_id = auth.uid()
+  or (lease_id is not null and public.current_user_can_access_lease_finance(lease_id))
+);
+
 drop policy if exists "maintenance landlord all" on public.maintenance_requests;
 create policy "maintenance landlord all"
 on public.maintenance_requests for all to authenticated
@@ -7372,6 +9371,424 @@ with check (
       and l.status = 'active'
       and l.landlord_id = maintenance_requests.landlord_id
   )
+);
+
+drop policy if exists "maintenance quotes landlord all" on public.maintenance_quotes;
+create policy "maintenance quotes landlord all"
+on public.maintenance_quotes for all to authenticated
+using (landlord_id = auth.uid())
+with check (landlord_id = auth.uid());
+
+drop policy if exists "maintenance quotes staff scoped" on public.maintenance_quotes;
+create policy "maintenance quotes staff scoped"
+on public.maintenance_quotes for all to authenticated
+using (
+  public.current_profile_role() = 'staff'
+  and public.staff_can_access_unit(unit_id)
+  and (
+    public.staff_permission_flag('can_create_maintenance')
+    or public.staff_permission_flag('can_assign_maintenance')
+    or public.staff_permission_flag('can_add_resolution_notes')
+  )
+)
+with check (
+  public.current_profile_role() = 'staff'
+  and public.staff_can_access_unit(unit_id)
+  and landlord_id = public.current_landlord_id()
+  and (
+    public.staff_permission_flag('can_create_maintenance')
+    or public.staff_permission_flag('can_assign_maintenance')
+    or public.staff_permission_flag('can_add_resolution_notes')
+  )
+);
+
+drop policy if exists "maintenance quotes management scoped" on public.maintenance_quotes;
+create policy "maintenance quotes management scoped"
+on public.maintenance_quotes for all to authenticated
+using (
+  public.current_profile_role() in ('management_leader', 'management_staff')
+  and public.management_can_access_unit(unit_id)
+  and (
+    public.management_permission_flag('can_create_maintenance')
+    or public.management_permission_flag('can_assign_maintenance')
+    or public.management_permission_flag('can_add_resolution_notes')
+  )
+)
+with check (
+  public.current_profile_role() in ('management_leader', 'management_staff')
+  and public.management_can_access_unit(unit_id)
+  and (
+    public.management_permission_flag('can_create_maintenance')
+    or public.management_permission_flag('can_assign_maintenance')
+    or public.management_permission_flag('can_add_resolution_notes')
+  )
+);
+
+drop policy if exists "maintenance quotes tenant read own" on public.maintenance_quotes;
+create policy "maintenance quotes tenant read own"
+on public.maintenance_quotes for select to authenticated
+using (
+  exists (
+    select 1
+    from public.maintenance_requests mr
+    where mr.id = maintenance_quotes.maintenance_request_id
+      and mr.submitted_by_profile_id = auth.uid()
+  )
+);
+
+drop policy if exists "maintenance activity landlord read" on public.maintenance_activity;
+create policy "maintenance activity landlord read"
+on public.maintenance_activity for select to authenticated
+using (landlord_id = auth.uid());
+
+drop policy if exists "maintenance activity staff read scoped" on public.maintenance_activity;
+create policy "maintenance activity staff read scoped"
+on public.maintenance_activity for select to authenticated
+using (
+  public.current_profile_role() = 'staff'
+  and exists (
+    select 1
+    from public.maintenance_requests mr
+    where mr.id = maintenance_activity.maintenance_request_id
+      and public.staff_can_access_unit(mr.unit_id)
+      and (
+        public.staff_permission_flag('can_manage_maintenance')
+        or public.staff_permission_flag('can_create_maintenance')
+        or public.staff_permission_flag('can_assign_maintenance')
+        or public.staff_permission_flag('can_add_resolution_notes')
+      )
+  )
+);
+
+drop policy if exists "maintenance activity management read scoped" on public.maintenance_activity;
+create policy "maintenance activity management read scoped"
+on public.maintenance_activity for select to authenticated
+using (
+  public.current_profile_role() in ('management_leader', 'management_staff')
+  and exists (
+    select 1
+    from public.maintenance_requests mr
+    where mr.id = maintenance_activity.maintenance_request_id
+      and public.management_can_access_unit(mr.unit_id)
+      and (
+        public.management_permission_flag('can_manage_maintenance')
+        or public.management_permission_flag('can_create_maintenance')
+        or public.management_permission_flag('can_assign_maintenance')
+        or public.management_permission_flag('can_add_resolution_notes')
+      )
+  )
+);
+
+drop policy if exists "maintenance activity tenant read own" on public.maintenance_activity;
+create policy "maintenance activity tenant read own"
+on public.maintenance_activity for select to authenticated
+using (
+  exists (
+    select 1
+    from public.maintenance_requests mr
+    where mr.id = maintenance_activity.maintenance_request_id
+      and mr.submitted_by_profile_id = auth.uid()
+  )
+);
+
+drop policy if exists "maintenance activity insert for scoped request" on public.maintenance_activity;
+create policy "maintenance activity insert for scoped request"
+on public.maintenance_activity for insert to authenticated
+with check (
+  exists (
+    select 1
+    from public.maintenance_requests mr
+    where mr.id = maintenance_activity.maintenance_request_id
+      and (
+        mr.landlord_id = auth.uid()
+        or mr.submitted_by_profile_id = auth.uid()
+        or (
+          public.current_profile_role() = 'staff'
+          and public.staff_can_access_unit(mr.unit_id)
+          and (
+            public.staff_permission_flag('can_manage_maintenance')
+            or public.staff_permission_flag('can_create_maintenance')
+            or public.staff_permission_flag('can_assign_maintenance')
+            or public.staff_permission_flag('can_add_resolution_notes')
+          )
+        )
+        or (
+          public.current_profile_role() in ('management_leader', 'management_staff')
+          and public.management_can_access_unit(mr.unit_id)
+          and (
+            public.management_permission_flag('can_manage_maintenance')
+            or public.management_permission_flag('can_create_maintenance')
+            or public.management_permission_flag('can_assign_maintenance')
+            or public.management_permission_flag('can_add_resolution_notes')
+          )
+        )
+      )
+  )
+);
+
+drop policy if exists "property inspections read scoped" on public.property_inspections;
+create policy "property inspections read scoped"
+on public.property_inspections for select to authenticated
+using (public.can_access_inspection(id));
+
+drop policy if exists "property inspections insert scoped" on public.property_inspections;
+create policy "property inspections insert scoped"
+on public.property_inspections for insert to authenticated
+with check (
+  status in ('draft', 'completed')
+  and (
+    public.is_super_admin()
+    or public.admin_staff_can_access_unit(unit_id)
+    or landlord_id = auth.uid()
+    or (
+      public.current_profile_role() = 'staff'
+      and public.staff_can_access_unit(unit_id)
+      and (
+        public.staff_permission_flag('can_manage_maintenance')
+        or public.staff_permission_flag('can_create_maintenance')
+        or public.staff_permission_flag('can_add_resolution_notes')
+      )
+    )
+    or (
+      public.current_profile_role() in ('management_leader', 'management_staff')
+      and public.management_can_access_unit(unit_id)
+      and (
+        public.management_permission_flag('can_manage_maintenance')
+        or public.management_permission_flag('can_create_maintenance')
+        or public.management_permission_flag('can_add_resolution_notes')
+      )
+    )
+  )
+);
+
+drop policy if exists "property inspections update scoped" on public.property_inspections;
+create policy "property inspections update scoped"
+on public.property_inspections for update to authenticated
+using (
+  status <> 'locked'
+  and public.can_manage_inspection(id)
+)
+with check (
+  public.can_manage_inspection(id)
+);
+
+drop policy if exists "property inspections delete scoped" on public.property_inspections;
+create policy "property inspections delete scoped"
+on public.property_inspections for delete to authenticated
+using (
+  status <> 'locked'
+  and public.can_manage_inspection(id)
+);
+
+drop policy if exists "inspection files read scoped" on public.inspection_files;
+create policy "inspection files read scoped"
+on public.inspection_files for select to authenticated
+using (public.can_access_inspection(inspection_id));
+
+drop policy if exists "inspection files insert scoped" on public.inspection_files;
+create policy "inspection files insert scoped"
+on public.inspection_files for insert to authenticated
+with check (public.can_manage_inspection(inspection_id));
+
+drop policy if exists "inspection files update scoped" on public.inspection_files;
+create policy "inspection files update scoped"
+on public.inspection_files for update to authenticated
+using (public.can_manage_inspection(inspection_id))
+with check (public.can_manage_inspection(inspection_id));
+
+drop policy if exists "inspection files delete scoped" on public.inspection_files;
+create policy "inspection files delete scoped"
+on public.inspection_files for delete to authenticated
+using (public.can_manage_inspection(inspection_id));
+
+drop policy if exists "tenant applications read scoped" on public.tenant_applications;
+create policy "tenant applications read scoped"
+on public.tenant_applications for select to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_applications.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or (property_id is not null and public.staff_can_access_property(property_id))
+  or (property_id is not null and public.management_can_access_property(property_id))
+);
+
+drop policy if exists "tenant applications manage scoped" on public.tenant_applications;
+create policy "tenant applications manage scoped"
+on public.tenant_applications for all to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or (property_id is not null and public.staff_can_access_property(property_id) and public.staff_permission_flag('can_add_tenants'))
+  or (property_id is not null and public.management_can_access_property(property_id) and public.management_permission_flag('can_add_tenants'))
+)
+with check (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or (property_id is not null and public.staff_can_access_property(property_id) and public.staff_permission_flag('can_add_tenants'))
+  or (property_id is not null and public.management_can_access_property(property_id) and public.management_permission_flag('can_add_tenants'))
+);
+
+drop policy if exists "tenant documents read scoped" on public.tenant_documents;
+create policy "tenant documents read scoped"
+on public.tenant_documents for select to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_documents.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or (lease_id is not null and public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_view_leases'))
+  or (lease_id is not null and public.management_can_access_lease(lease_id) and public.management_permission_flag('can_view_leases'))
+);
+
+drop policy if exists "tenant documents manage scoped" on public.tenant_documents;
+create policy "tenant documents manage scoped"
+on public.tenant_documents for all to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_documents.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or (lease_id is not null and public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_upload_lease_documents'))
+  or (lease_id is not null and public.management_can_access_lease(lease_id) and public.management_permission_flag('can_upload_lease_documents'))
+)
+with check (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_documents.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or (lease_id is not null and public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_upload_lease_documents'))
+  or (lease_id is not null and public.management_can_access_lease(lease_id) and public.management_permission_flag('can_upload_lease_documents'))
+);
+
+drop policy if exists "lease lifecycle read scoped" on public.lease_lifecycle_items;
+create policy "lease lifecycle read scoped"
+on public.lease_lifecycle_items for select to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = lease_lifecycle_items.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or public.staff_can_access_lease(lease_id)
+  or public.management_can_access_lease(lease_id)
+);
+
+drop policy if exists "lease lifecycle manage scoped" on public.lease_lifecycle_items;
+create policy "lease lifecycle manage scoped"
+on public.lease_lifecycle_items for all to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or (public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_edit_leases'))
+  or (public.management_can_access_lease(lease_id) and public.management_permission_flag('can_edit_leases'))
+)
+with check (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or (public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_edit_leases'))
+  or (public.management_can_access_lease(lease_id) and public.management_permission_flag('can_edit_leases'))
+);
+
+drop policy if exists "deposit settlements read scoped" on public.deposit_settlements;
+create policy "deposit settlements read scoped"
+on public.deposit_settlements for select to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = deposit_settlements.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or public.staff_can_access_lease(lease_id)
+  or public.management_can_access_lease(lease_id)
+);
+
+drop policy if exists "deposit settlements manage scoped" on public.deposit_settlements;
+create policy "deposit settlements manage scoped"
+on public.deposit_settlements for all to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or (public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_edit_leases'))
+  or (public.management_can_access_lease(lease_id) and public.management_permission_flag('can_edit_leases'))
+)
+with check (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or (public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_edit_leases'))
+  or (public.management_can_access_lease(lease_id) and public.management_permission_flag('can_edit_leases'))
+);
+
+drop policy if exists "tenant reference requests read scoped" on public.tenant_reference_requests;
+create policy "tenant reference requests read scoped"
+on public.tenant_reference_requests for select to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_reference_requests.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or public.staff_can_access_lease(lease_id)
+  or public.management_can_access_lease(lease_id)
+);
+
+drop policy if exists "tenant reference requests manage scoped" on public.tenant_reference_requests;
+create policy "tenant reference requests manage scoped"
+on public.tenant_reference_requests for all to authenticated
+using (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_reference_requests.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or (public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_edit_leases'))
+  or (public.management_can_access_lease(lease_id) and public.management_permission_flag('can_edit_leases'))
+)
+with check (
+  landlord_id = auth.uid()
+  or public.is_super_admin()
+  or public.admin_staff_can_access_landlord(landlord_id)
+  or exists (
+    select 1 from public.tenants t
+    where t.id = tenant_reference_requests.tenant_id
+      and t.profile_id = auth.uid()
+  )
+  or (public.staff_can_access_lease(lease_id) and public.staff_permission_flag('can_edit_leases'))
+  or (public.management_can_access_lease(lease_id) and public.management_permission_flag('can_edit_leases'))
 );
 
 drop policy if exists "notifications profile owner" on public.notifications;
@@ -7905,6 +10322,158 @@ begin
     and related_id = tenant_record.id;
 
   return tenant_record.id;
+end;
+$$;
+
+drop function if exists public.create_tenant_reference_request(uuid, text, text, text);
+
+create or replace function public.create_tenant_reference_request(
+  p_lease_id uuid,
+  p_requester_name text,
+  p_requester_email text,
+  p_purpose text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lease_record record;
+  request_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'You must be signed in to create a reference request.';
+  end if;
+
+  if nullif(trim(coalesce(p_requester_name, '')), '') is null
+    or nullif(trim(coalesce(p_requester_email, '')), '') is null
+    or nullif(trim(coalesce(p_purpose, '')), '') is null then
+    raise exception 'Requester name, email, and purpose are required.';
+  end if;
+
+  select
+    l.id,
+    l.landlord_id,
+    l.tenant_id,
+    t.profile_id as tenant_profile_id
+  into lease_record
+  from public.leases l
+  join public.tenants t on t.id = l.tenant_id
+  where l.id = p_lease_id
+    and l.archived_at is null
+    and t.archived_at is null;
+
+  if not found then
+    raise exception 'Lease not found.';
+  end if;
+
+  if not (
+    lease_record.landlord_id = auth.uid()
+    or public.is_super_admin()
+    or public.admin_staff_can_access_landlord(lease_record.landlord_id)
+    or (public.staff_can_access_lease(lease_record.id) and public.staff_permission_flag('can_edit_leases'))
+    or (public.management_can_access_lease(lease_record.id) and public.management_permission_flag('can_edit_leases'))
+  ) then
+    raise exception 'Missing permission: edit leases.';
+  end if;
+
+  insert into public.tenant_reference_requests (
+    lease_id,
+    landlord_id,
+    tenant_id,
+    requester_name,
+    requester_email,
+    purpose,
+    consent_status
+  )
+  values (
+    lease_record.id,
+    lease_record.landlord_id,
+    lease_record.tenant_id,
+    trim(p_requester_name),
+    lower(trim(p_requester_email)),
+    trim(p_purpose),
+    'pending'
+  )
+  returning id into request_id;
+
+  if lease_record.tenant_profile_id is not null then
+    insert into public.notifications (
+      profile_id,
+      landlord_id,
+      type,
+      title,
+      message,
+      related_id,
+      response_status
+    )
+    values (
+      lease_record.tenant_profile_id,
+      lease_record.landlord_id,
+      'tenant_reference_request',
+      'Tenant reference request',
+      'A rental reference request needs your consent before any details are shared.',
+      request_id,
+      'pending'
+    );
+  end if;
+
+  return request_id;
+end;
+$$;
+
+drop function if exists public.respond_tenant_reference_request(uuid, boolean);
+
+create or replace function public.respond_tenant_reference_request(
+  p_request_id uuid,
+  p_accept boolean
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  request_record record;
+  next_status text;
+begin
+  if auth.uid() is null then
+    raise exception 'You must be signed in to respond to this request.';
+  end if;
+
+  select r.id, r.consent_status
+  into request_record
+  from public.tenant_reference_requests r
+  join public.tenants t on t.id = r.tenant_id
+  where r.id = p_request_id
+    and t.profile_id = auth.uid()
+    and t.archived_at is null
+  for update;
+
+  if not found then
+    raise exception 'This reference request is no longer available.';
+  end if;
+
+  if request_record.consent_status is distinct from 'pending' then
+    raise exception 'This reference request has already been responded to.';
+  end if;
+
+  next_status := case when coalesce(p_accept, false) then 'approved' else 'rejected' end;
+
+  update public.tenant_reference_requests
+  set consent_status = next_status,
+      responded_at = now()
+  where id = request_record.id;
+
+  update public.notifications
+  set is_read = true,
+      response_status = next_status
+  where profile_id = auth.uid()
+    and type = 'tenant_reference_request'
+    and related_id = request_record.id;
+
+  return request_record.id;
 end;
 $$;
 
@@ -9554,7 +12123,7 @@ select
   true
 from (
   values
-    ('ZW', 'Zimbabwe', 'USD', 'landlord', 'free', 'Free', 10, 0::numeric, 0::numeric, null::text, 'For one-unit landlords and landlords invited by an IPM or PMC.', '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', 1, 1, 0, 1, 0, 0, 0, 'Sign up for free', 'client.html?signup=landlord', false),
+    ('ZW', 'Zimbabwe', 'USD', 'landlord', 'free', 'Free', 10, 0::numeric, 0::numeric, null::text, 'For one-unit landlords and landlords invited by an IPM or PMC.', '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', 1, 1, 0, 1, 0, 0, 0, 'Sign up for free', 'landlord-signup.html', false),
     ('ZW', 'Zimbabwe', 'USD', 'landlord', 'starter', 'Starter', 20, 4::numeric, 44::numeric, null::text, 'For a small landlord who needs more than the free single-unit account.', '2 properties, 8 units, 1 staff, 1 IPM or PMC connection', 2, 8, 1, 1, 0, 0, 0, 'Enquire', 'contact.html', true),
     ('ZW', 'Zimbabwe', 'USD', 'landlord', 'growth', 'Growth', 30, 10::numeric, 110::numeric, null::text, 'For growing owners with multiple units.', '6 properties, 35 units, 3 staff, 2 IPM or PMC connections', 6, 35, 3, 2, 0, 0, 0, 'Enquire', 'contact.html', false),
     ('ZW', 'Zimbabwe', 'USD', 'landlord', 'portfolio', 'Portfolio', 40, 22::numeric, 242::numeric, null::text, 'For larger landlords with more staff and partner access.', '20 properties, 120 units, 8 staff, 5 IPM or PMC connections', 20, 120, 8, 5, 0, 0, 0, 'Enquire', 'contact.html', false),
@@ -9567,7 +12136,7 @@ from (
     ('ZW', 'Zimbabwe', 'USD', 'pmc', 'growth', 'Growth', 20, 75::numeric, 825::numeric, null::text, 'For PMCs managing a growing portfolio.', '12 landlords, 75 properties, 400 units, 15 staff', 75, 400, 0, 0, 12, 0, 15, 'Enquire', 'contact.html', false),
     ('ZW', 'Zimbabwe', 'USD', 'pmc', 'business', 'Business', 30, 150::numeric, 1650::numeric, null::text, 'For larger PMCs with bigger teams and portfolios.', '35 landlords, 250 properties, 1500 units, 40 staff', 250, 1500, 0, 0, 35, 0, 40, 'Enquire', 'contact.html', false),
     ('ZW', 'Zimbabwe', 'USD', 'pmc', 'custom', 'Custom', 40, 0::numeric, 0::numeric, 'From $250', 'For PMCs that need custom limits and onboarding.', 'Custom landlords, properties, units, and staff', 0, 0, 0, 0, 0, 0, 0, 'Enquire', 'contact.html', false),
-    ('MY', 'Malaysia', 'MYR', 'landlord', 'free', 'Free', 10, 0::numeric, 0::numeric, null::text, 'For one-unit landlords and landlords invited by an IPM or PMC.', '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', 1, 1, 0, 1, 0, 0, 0, 'Sign up for free', 'client.html?signup=landlord', false),
+    ('MY', 'Malaysia', 'MYR', 'landlord', 'free', 'Free', 10, 0::numeric, 0::numeric, null::text, 'For one-unit landlords and landlords invited by an IPM or PMC.', '1 property, 1 unit, Finance page, 0 personal staff, 1 IPM or PMC connection', 1, 1, 0, 1, 0, 0, 0, 'Sign up for free', 'landlord-signup.html', false),
     ('MY', 'Malaysia', 'MYR', 'landlord', 'starter', 'Starter', 20, 19::numeric, 209::numeric, null::text, 'For a small landlord who needs more than the free single-unit account.', '2 properties, 8 units, 1 staff, 1 IPM or PMC connection', 2, 8, 1, 1, 0, 0, 0, 'Enquire', 'contact.html', true),
     ('MY', 'Malaysia', 'MYR', 'landlord', 'growth', 'Growth', 30, 59::numeric, 649::numeric, null::text, 'For growing owners with multiple units.', '6 properties, 35 units, 3 staff, 2 IPM or PMC connections', 6, 35, 3, 2, 0, 0, 0, 'Enquire', 'contact.html', false),
     ('MY', 'Malaysia', 'MYR', 'landlord', 'portfolio', 'Portfolio', 40, 149::numeric, 1639::numeric, null::text, 'For larger landlords with more staff and partner access.', '20 properties, 120 units, 8 staff, 5 IPM or PMC connections', 20, 120, 8, 5, 0, 0, 0, 'Enquire', 'contact.html', false),
@@ -9682,10 +12251,18 @@ grant execute on function public.reject_management_landlord_request(uuid) to aut
 grant execute on function public.regenerate_landlord_code() to authenticated;
 grant execute on function public.check_lease_expiries() to authenticated;
 grant execute on function public.accept_payment_submission(uuid) to authenticated;
+grant execute on function public.current_user_can_access_lease_finance(uuid) to authenticated;
+grant execute on function public.current_user_can_manage_lease_finance(uuid) to authenticated;
+grant execute on function public.ensure_rent_charges_for_lease(uuid, date) to authenticated;
+grant execute on function public.ensure_deposit_charge_for_lease(uuid) to authenticated;
+grant execute on function public.recalculate_charge_paid(uuid) to authenticated;
+grant execute on function public.allocate_payment_to_charge(uuid, uuid, numeric) to authenticated;
 grant execute on function public.link_current_tenant_account() to authenticated;
 grant execute on function public.accept_tenant_invite(uuid) to authenticated;
 grant execute on function public.accept_tenant_invite(uuid, text, text, text) to authenticated;
 grant execute on function public.respond_tenant_link_request(uuid, boolean) to authenticated;
+grant execute on function public.create_tenant_reference_request(uuid, text, text, text) to authenticated;
+grant execute on function public.respond_tenant_reference_request(uuid, boolean) to authenticated;
 grant execute on function public.current_tenant_landlord() to authenticated;
 grant execute on function public.tenant_landlord_relationships() to authenticated;
 grant execute on function public.drop_tenant_landlord(uuid) to authenticated;
@@ -9701,6 +12278,14 @@ grant execute on function public.can_read_payment_proof(text) to authenticated;
 grant execute on function public.can_manage_payment_proof(text) to authenticated;
 grant execute on function public.can_read_maintenance_photo(text) to authenticated;
 grant execute on function public.can_manage_maintenance_photo(text) to authenticated;
+grant all on public.property_inspections to authenticated;
+grant all on public.inspection_files to authenticated;
+grant execute on function public.inspection_file_inspection_id(text) to authenticated;
+grant execute on function public.can_access_inspection(uuid) to authenticated;
+grant execute on function public.can_manage_inspection(uuid) to authenticated;
+grant execute on function public.can_read_inspection_file(text) to authenticated;
+grant execute on function public.can_manage_inspection_file(text) to authenticated;
+grant execute on function public.tenant_sign_inspection(uuid, text) to authenticated;
 revoke execute on function public.attach_payment_proof(uuid, text, text, integer) from public, anon;
 revoke execute on function public.attach_payment_record_proof(uuid, text, text, integer) from public, anon;
 revoke execute on function public.attach_maintenance_photo(uuid, text, text, integer) from public, anon;
@@ -9710,6 +12295,8 @@ revoke execute on function public.link_current_tenant_account() from public, ano
 revoke execute on function public.accept_tenant_invite(uuid) from public, anon;
 revoke execute on function public.accept_tenant_invite(uuid, text, text, text) from public, anon;
 revoke execute on function public.respond_tenant_link_request(uuid, boolean) from public, anon;
+revoke execute on function public.create_tenant_reference_request(uuid, text, text, text) from public, anon;
+revoke execute on function public.respond_tenant_reference_request(uuid, boolean) from public, anon;
 revoke execute on function public.current_tenant_landlord() from public, anon;
 revoke execute on function public.tenant_landlord_relationships() from public, anon;
 revoke execute on function public.drop_tenant_landlord(uuid) from public, anon;
@@ -9734,6 +12321,8 @@ grant execute on function public.delete_tenant_account(uuid) to authenticated;
 grant execute on function public.delete_staff_account(uuid) to authenticated;
 grant execute on function public.create_tenant_invite(uuid, text, text, text, text) to authenticated;
 grant execute on function public.respond_tenant_link_request(uuid, boolean) to authenticated;
+grant execute on function public.create_tenant_reference_request(uuid, text, text, text) to authenticated;
+grant execute on function public.respond_tenant_reference_request(uuid, boolean) to authenticated;
 grant execute on function public.current_tenant_landlord() to authenticated;
 grant execute on function public.tenant_landlord_relationships() to authenticated;
 grant execute on function public.drop_tenant_landlord(uuid) to authenticated;
@@ -9765,9 +12354,18 @@ begin
     'leases',
     'payments',
     'payment_submissions',
+    'lease_charges',
+    'payment_allocations',
+    'lease_ledger_entries',
+    'finance_audit_events',
     'platform_payments',
     'partner_payments',
+    'partner_reconciliations',
     'maintenance_requests',
+    'maintenance_quotes',
+    'maintenance_activity',
+    'property_inspections',
+    'inspection_files',
     'notifications',
     'staff_permissions',
     'staff_landlord_requests',
