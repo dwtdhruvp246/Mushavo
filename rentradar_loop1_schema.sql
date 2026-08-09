@@ -448,6 +448,9 @@ begin
   alter type public.notification_type add value if not exists 'tenant_reference_request';
   alter type public.notification_type add value if not exists 'lease_lifecycle_reminder';
   alter type public.notification_type add value if not exists 'tenant_application_update';
+  alter type public.notification_type add value if not exists 'listing_lead_created';
+  alter type public.notification_type add value if not exists 'viewing_requested';
+  alter type public.notification_type add value if not exists 'lead_followup_due';
 end $$;
 
 -- Commit enum changes before functions use newly-added enum values.
@@ -853,6 +856,9 @@ create table if not exists public.staff_permissions (
   can_add_resolution_notes boolean not null default false,
   can_manage_staff boolean not null default false,
   can_view_finance boolean not null default false,
+  can_publish_listings boolean not null default false,
+  can_manage_leads boolean not null default false,
+  can_schedule_viewings boolean not null default false,
   can_view_tenants boolean not null default false,
   can_manage_maintenance boolean not null default false,
   can_view_payments boolean not null default false,
@@ -895,6 +901,9 @@ alter table public.staff_permissions add column if not exists can_assign_mainten
 alter table public.staff_permissions add column if not exists can_add_resolution_notes boolean not null default false;
 alter table public.staff_permissions add column if not exists can_manage_staff boolean not null default false;
 alter table public.staff_permissions add column if not exists can_view_finance boolean not null default false;
+alter table public.staff_permissions add column if not exists can_publish_listings boolean not null default false;
+alter table public.staff_permissions add column if not exists can_manage_leads boolean not null default false;
+alter table public.staff_permissions add column if not exists can_schedule_viewings boolean not null default false;
 alter table public.staff_permissions add column if not exists status text not null default 'approved';
 alter table public.staff_permissions add column if not exists contract_start_date date;
 alter table public.staff_permissions add column if not exists contract_end_date date;
@@ -1040,6 +1049,9 @@ create table if not exists public.management_landlord_permissions (
   can_add_resolution_notes boolean not null default false,
   can_manage_staff boolean not null default true,
   can_view_finance boolean not null default false,
+  can_publish_listings boolean not null default false,
+  can_manage_leads boolean not null default false,
+  can_schedule_viewings boolean not null default false,
   contract_start_date date,
   contract_end_date date,
   accepted_at timestamptz not null default now(),
@@ -1052,6 +1064,9 @@ create index if not exists management_permissions_leader_idx on public.managemen
 create index if not exists management_permissions_landlord_idx on public.management_landlord_permissions (landlord_id);
 alter table public.management_landlord_permissions add column if not exists contract_start_date date;
 alter table public.management_landlord_permissions add column if not exists contract_end_date date;
+alter table public.management_landlord_permissions add column if not exists can_publish_listings boolean not null default false;
+alter table public.management_landlord_permissions add column if not exists can_manage_leads boolean not null default false;
+alter table public.management_landlord_permissions add column if not exists can_schedule_viewings boolean not null default false;
 
 create table if not exists public.partner_payments (
   id uuid primary key default gen_random_uuid(),
@@ -1150,6 +1165,9 @@ create table if not exists public.management_staff_permissions (
   can_add_resolution_notes boolean not null default false,
   can_manage_staff boolean not null default false,
   can_view_finance boolean not null default false,
+  can_publish_listings boolean not null default false,
+  can_manage_leads boolean not null default false,
+  can_schedule_viewings boolean not null default false,
   invited_at timestamptz not null default now(),
   accepted_at timestamptz,
   status text not null default 'approved' check (status in ('pending', 'approved', 'rejected', 'suspended')),
@@ -1158,6 +1176,9 @@ create table if not exists public.management_staff_permissions (
 
 create index if not exists management_staff_permissions_company_idx on public.management_staff_permissions (management_company_id);
 create index if not exists management_staff_permissions_staff_idx on public.management_staff_permissions (staff_profile_id);
+alter table public.management_staff_permissions add column if not exists can_publish_listings boolean not null default false;
+alter table public.management_staff_permissions add column if not exists can_manage_leads boolean not null default false;
+alter table public.management_staff_permissions add column if not exists can_schedule_viewings boolean not null default false;
 alter table public.management_staff_permissions add column if not exists can_manage_staff boolean not null default false;
 alter table public.management_staff_permissions add column if not exists can_manage_leases boolean not null default false;
 alter table public.management_landlord_permissions add column if not exists can_archive_units boolean not null default false;
@@ -2783,6 +2804,9 @@ begin
     when 'can_manage_leases' then sp.can_manage_leases
     when 'can_manage_staff' then sp.can_manage_staff
     when 'can_view_finance' then sp.can_view_finance
+    when 'can_publish_listings' then sp.can_publish_listings
+    when 'can_manage_leads' then sp.can_manage_leads
+    when 'can_schedule_viewings' then sp.can_schedule_viewings
     else false
   end
   into allowed
@@ -2821,6 +2845,10 @@ begin
 
   if flag_name in ('can_edit_leases', 'can_terminate_leases', 'can_view_lease_documents', 'can_upload_lease_documents', 'can_manage_leases') then
     return public.staff_permission_flag('can_view_units');
+  end if;
+
+  if flag_name in ('can_publish_listings', 'can_manage_leads', 'can_schedule_viewings') then
+    return public.staff_permission_flag('can_view_properties') and public.staff_permission_flag('can_view_units');
   end if;
 
   return true;
@@ -3636,6 +3664,9 @@ begin
     when 'can_verify_payments' then mlp.can_verify_payments
     when 'can_manage_staff' then mlp.can_manage_staff
     when 'can_view_finance' then mlp.can_view_finance
+    when 'can_publish_listings' then mlp.can_publish_listings
+    when 'can_manage_leads' then mlp.can_manage_leads
+    when 'can_schedule_viewings' then mlp.can_schedule_viewings
     else false
     end
   )
@@ -3672,6 +3703,9 @@ begin
       when 'can_verify_payments' then msp.can_verify_payments
       when 'can_manage_staff' then msp.can_manage_staff
       when 'can_view_finance' then msp.can_view_finance
+      when 'can_publish_listings' then msp.can_publish_listings
+      when 'can_manage_leads' then msp.can_manage_leads
+      when 'can_schedule_viewings' then msp.can_schedule_viewings
       else false
     end
   ))
@@ -3719,6 +3753,10 @@ begin
 
   if flag_name in ('can_edit_leases', 'can_terminate_leases', 'can_view_lease_documents', 'can_upload_lease_documents', 'can_manage_leases') then
     return public.management_permission_flag('can_view_units');
+  end if;
+
+  if flag_name in ('can_publish_listings', 'can_manage_leads', 'can_schedule_viewings') then
+    return public.management_permission_flag('can_view_properties') and public.management_permission_flag('can_view_units');
   end if;
 
   return true;
@@ -7384,6 +7422,834 @@ create trigger management_landlord_requests_notify_pending
 after insert or update of status, requested_at on public.management_landlord_requests
 for each row execute function public.notify_management_landlord_request_pending();
 
+create table if not exists public.unit_listings (
+  id uuid primary key default gen_random_uuid(),
+  unit_id uuid not null references public.units(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  country_id uuid null references public.countries(id) on delete set null,
+  published_by uuid null references public.profiles(id) on delete set null,
+  manager_profile_id uuid null references public.profiles(id) on delete set null,
+  management_company_id uuid null references public.management_companies(id) on delete set null,
+  manager_role text not null default 'landlord',
+  status text not null default 'draft',
+  title text not null default '',
+  summary text,
+  public_area text,
+  availability_status text not null default 'available',
+  available_from date,
+  show_rent boolean not null default true,
+  show_photos boolean not null default true,
+  photo_urls text[] not null default '{}'::text[],
+  published_at timestamptz,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.unit_listings add column if not exists country_id uuid null references public.countries(id) on delete set null;
+alter table public.unit_listings add column if not exists published_by uuid null references public.profiles(id) on delete set null;
+alter table public.unit_listings add column if not exists manager_profile_id uuid null references public.profiles(id) on delete set null;
+alter table public.unit_listings add column if not exists management_company_id uuid null references public.management_companies(id) on delete set null;
+alter table public.unit_listings add column if not exists manager_role text not null default 'landlord';
+alter table public.unit_listings add column if not exists status text not null default 'draft';
+alter table public.unit_listings add column if not exists title text not null default '';
+alter table public.unit_listings add column if not exists summary text;
+alter table public.unit_listings add column if not exists public_area text;
+alter table public.unit_listings add column if not exists availability_status text not null default 'available';
+alter table public.unit_listings add column if not exists available_from date;
+alter table public.unit_listings add column if not exists show_rent boolean not null default true;
+alter table public.unit_listings add column if not exists show_photos boolean not null default true;
+alter table public.unit_listings add column if not exists photo_urls text[] not null default '{}'::text[];
+alter table public.unit_listings add column if not exists published_at timestamptz;
+alter table public.unit_listings add column if not exists archived_at timestamptz;
+alter table public.unit_listings add column if not exists updated_at timestamptz not null default now();
+do $$
+begin
+  alter table public.unit_listings drop constraint if exists unit_listings_manager_role_check;
+  alter table public.unit_listings add constraint unit_listings_manager_role_check check (manager_role in ('landlord', 'landlord_staff', 'ipm', 'pmc', 'pmc_staff', 'admin', 'admin_staff'));
+  alter table public.unit_listings drop constraint if exists unit_listings_status_check;
+  alter table public.unit_listings add constraint unit_listings_status_check check (status in ('draft', 'published', 'paused', 'archived'));
+  alter table public.unit_listings drop constraint if exists unit_listings_availability_status_check;
+  alter table public.unit_listings add constraint unit_listings_availability_status_check check (availability_status in ('available', 'available_soon'));
+exception when duplicate_object then null;
+end $$;
+create unique index if not exists unit_listings_active_unit_idx on public.unit_listings (unit_id) where archived_at is null;
+create index if not exists unit_listings_unit_id_idx on public.unit_listings (unit_id);
+create index if not exists unit_listings_property_id_idx on public.unit_listings (property_id);
+create index if not exists unit_listings_landlord_id_idx on public.unit_listings (landlord_id);
+create index if not exists unit_listings_country_id_idx on public.unit_listings (country_id);
+create index if not exists unit_listings_status_idx on public.unit_listings (status);
+
+create table if not exists public.listing_leads (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.unit_listings(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  country_id uuid null references public.countries(id) on delete set null,
+  manager_profile_id uuid null references public.profiles(id) on delete set null,
+  management_company_id uuid null references public.management_companies(id) on delete set null,
+  lead_name text not null,
+  lead_email text not null,
+  lead_phone text not null,
+  message text,
+  status text not null default 'new',
+  source text not null default 'public_listing',
+  saved boolean not null default false,
+  converted_tenant_request_id uuid,
+  converted_lease_id uuid null references public.leases(id) on delete set null,
+  converted_by uuid null references public.profiles(id) on delete set null,
+  converted_at timestamptz,
+  lost_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.listing_leads add column if not exists country_id uuid null references public.countries(id) on delete set null;
+alter table public.listing_leads add column if not exists manager_profile_id uuid null references public.profiles(id) on delete set null;
+alter table public.listing_leads add column if not exists management_company_id uuid null references public.management_companies(id) on delete set null;
+alter table public.listing_leads add column if not exists message text;
+alter table public.listing_leads add column if not exists status text not null default 'new';
+alter table public.listing_leads add column if not exists source text not null default 'public_listing';
+alter table public.listing_leads add column if not exists saved boolean not null default false;
+alter table public.listing_leads add column if not exists converted_tenant_request_id uuid;
+alter table public.listing_leads add column if not exists converted_lease_id uuid null references public.leases(id) on delete set null;
+alter table public.listing_leads add column if not exists converted_by uuid null references public.profiles(id) on delete set null;
+alter table public.listing_leads add column if not exists converted_at timestamptz;
+alter table public.listing_leads add column if not exists lost_reason text;
+alter table public.listing_leads add column if not exists updated_at timestamptz not null default now();
+do $$
+begin
+  alter table public.listing_leads drop constraint if exists listing_leads_status_check;
+  alter table public.listing_leads add constraint listing_leads_status_check check (status in ('new', 'viewing_requested', 'viewing_scheduled', 'follow_up', 'converted', 'lost'));
+exception when duplicate_object then null;
+end $$;
+create index if not exists listing_leads_listing_id_idx on public.listing_leads (listing_id);
+create index if not exists listing_leads_property_id_idx on public.listing_leads (property_id);
+create index if not exists listing_leads_landlord_id_idx on public.listing_leads (landlord_id);
+create index if not exists listing_leads_country_id_idx on public.listing_leads (country_id);
+create index if not exists listing_leads_status_idx on public.listing_leads (status);
+
+create table if not exists public.viewing_requests (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references public.listing_leads(id) on delete cascade,
+  listing_id uuid not null references public.unit_listings(id) on delete cascade,
+  unit_id uuid not null references public.units(id) on delete cascade,
+  property_id uuid not null references public.properties(id) on delete cascade,
+  landlord_id uuid not null references public.profiles(id) on delete cascade,
+  country_id uuid null references public.countries(id) on delete set null,
+  requested_for timestamptz,
+  scheduled_for timestamptz,
+  status text not null default 'requested',
+  notes text,
+  created_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.viewing_requests add column if not exists country_id uuid null references public.countries(id) on delete set null;
+alter table public.viewing_requests add column if not exists requested_for timestamptz;
+alter table public.viewing_requests add column if not exists scheduled_for timestamptz;
+alter table public.viewing_requests add column if not exists status text not null default 'requested';
+alter table public.viewing_requests add column if not exists notes text;
+alter table public.viewing_requests add column if not exists created_by uuid null references public.profiles(id) on delete set null;
+alter table public.viewing_requests add column if not exists updated_at timestamptz not null default now();
+do $$
+begin
+  alter table public.viewing_requests drop constraint if exists viewing_requests_status_check;
+  alter table public.viewing_requests add constraint viewing_requests_status_check check (status in ('requested', 'scheduled', 'completed', 'cancelled'));
+exception when duplicate_object then null;
+end $$;
+create index if not exists viewing_requests_lead_id_idx on public.viewing_requests (lead_id);
+create index if not exists viewing_requests_property_id_idx on public.viewing_requests (property_id);
+create index if not exists viewing_requests_country_id_idx on public.viewing_requests (country_id);
+create index if not exists viewing_requests_status_idx on public.viewing_requests (status);
+
+create table if not exists public.lead_followups (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references public.listing_leads(id) on delete cascade,
+  due_at timestamptz not null,
+  assigned_to uuid null references public.profiles(id) on delete set null,
+  note text not null default '',
+  status text not null default 'open',
+  created_by uuid null references public.profiles(id) on delete set null,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.lead_followups add column if not exists assigned_to uuid null references public.profiles(id) on delete set null;
+alter table public.lead_followups add column if not exists note text not null default '';
+alter table public.lead_followups add column if not exists status text not null default 'open';
+alter table public.lead_followups add column if not exists created_by uuid null references public.profiles(id) on delete set null;
+alter table public.lead_followups add column if not exists completed_at timestamptz;
+alter table public.lead_followups add column if not exists updated_at timestamptz not null default now();
+do $$
+begin
+  alter table public.lead_followups drop constraint if exists lead_followups_status_check;
+  alter table public.lead_followups add constraint lead_followups_status_check check (status in ('open', 'done', 'cancelled'));
+exception when duplicate_object then null;
+end $$;
+create index if not exists lead_followups_lead_id_idx on public.lead_followups (lead_id);
+create index if not exists lead_followups_assigned_to_idx on public.lead_followups (assigned_to);
+create index if not exists lead_followups_due_at_idx on public.lead_followups (due_at);
+
+create table if not exists public.lead_activity (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references public.listing_leads(id) on delete cascade,
+  actor_profile_id uuid null references public.profiles(id) on delete set null,
+  activity_type text not null,
+  details text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.lead_activity add column if not exists actor_profile_id uuid null references public.profiles(id) on delete set null;
+alter table public.lead_activity add column if not exists details text;
+create index if not exists lead_activity_lead_id_idx on public.lead_activity (lead_id);
+create index if not exists lead_activity_actor_profile_id_idx on public.lead_activity (actor_profile_id);
+
+drop trigger if exists unit_listings_touch_updated_at on public.unit_listings;
+create trigger unit_listings_touch_updated_at
+before update on public.unit_listings
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists listing_leads_touch_updated_at on public.listing_leads;
+create trigger listing_leads_touch_updated_at
+before update on public.listing_leads
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists viewing_requests_touch_updated_at on public.viewing_requests;
+create trigger viewing_requests_touch_updated_at
+before update on public.viewing_requests
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists lead_followups_touch_updated_at on public.lead_followups;
+create trigger lead_followups_touch_updated_at
+before update on public.lead_followups
+for each row execute function public.touch_updated_at();
+
+drop function if exists public.crm_can_access_property(uuid, text);
+create or replace function public.crm_can_access_property(p_property_id uuid, p_action text default null)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  property_landlord uuid;
+  property_country uuid;
+  role_value public.user_role;
+begin
+  select p.landlord_id, pr.country_id
+    into property_landlord, property_country
+  from public.properties p
+  left join public.profiles pr on pr.id = p.landlord_id
+  where p.id = p_property_id;
+
+  if property_landlord is null then
+    return false;
+  end if;
+
+  role_value := public.current_profile_role();
+
+  if public.is_super_admin() then
+    return true;
+  end if;
+
+  if role_value = 'admin_staff' and public.is_admin_staff_for_country(property_country) then
+    return true;
+  end if;
+
+  if auth.uid() = property_landlord then
+    return true;
+  end if;
+
+  if role_value = 'staff' and public.staff_can_access_property(p_property_id) then
+    return p_action is null or public.staff_permission_flag(p_action);
+  end if;
+
+  if role_value in ('management_leader', 'management_staff') and public.management_can_access_property(p_property_id) then
+    return p_action is null or public.management_permission_flag(p_action);
+  end if;
+
+  return false;
+end;
+$$;
+
+drop function if exists public.crm_can_access_lead(uuid, text);
+create or replace function public.crm_can_access_lead(p_lead_id uuid, p_action text default null)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.listing_leads ll
+    where ll.id = p_lead_id
+      and public.crm_can_access_property(ll.property_id, p_action)
+  )
+$$;
+
+drop function if exists public.get_public_unit_listings(uuid, text, numeric, numeric, numeric, text);
+create or replace function public.get_public_unit_listings(
+  p_country_id uuid default null,
+  p_area text default null,
+  p_min_rent numeric default null,
+  p_max_rent numeric default null,
+  p_bedrooms numeric default null,
+  p_availability text default null
+)
+returns table (
+  listing_id uuid,
+  country_id uuid,
+  country_name text,
+  country_code text,
+  city text,
+  public_area text,
+  property_name text,
+  unit_summary text,
+  rent numeric,
+  availability_status text,
+  available_from date,
+  bedrooms numeric,
+  bathrooms numeric,
+  photo_urls text[]
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    ul.id,
+    ul.country_id,
+    c.name,
+    c.code,
+    p.city,
+    coalesce(nullif(ul.public_area, ''), p.city),
+    p.name,
+    trim(concat('Unit ', u.unit_number, ' - ', u.bedrooms, ' bed, ', u.bathrooms, ' bath')),
+    case when ul.show_rent then u.monthly_rent else null end,
+    ul.availability_status,
+    ul.available_from,
+    u.bedrooms,
+    u.bathrooms,
+    case when ul.show_photos then ul.photo_urls else '{}'::text[] end
+  from public.unit_listings ul
+  join public.units u on u.id = ul.unit_id
+  join public.properties p on p.id = ul.property_id
+  left join public.countries c on c.id = ul.country_id
+  where ul.status = 'published'
+    and ul.archived_at is null
+    and p.archived_at is null
+    and u.archived_at is null
+    and (u.status = 'vacant' or ul.availability_status = 'available_soon')
+    and (p_country_id is null or ul.country_id = p_country_id)
+    and (p_area is null or p_area = '' or p.city ilike '%' || p_area || '%' or ul.public_area ilike '%' || p_area || '%' or p.name ilike '%' || p_area || '%')
+    and (p_min_rent is null or u.monthly_rent >= p_min_rent)
+    and (p_max_rent is null or u.monthly_rent <= p_max_rent)
+    and (p_bedrooms is null or u.bedrooms >= p_bedrooms)
+    and (p_availability is null or p_availability = '' or ul.availability_status = p_availability)
+  order by ul.published_at desc nulls last, ul.created_at desc
+$$;
+
+drop function if exists public.submit_listing_lead(uuid, text, text, text, text, timestamptz);
+create or replace function public.submit_listing_lead(
+  p_listing_id uuid,
+  p_name text,
+  p_email text,
+  p_phone text,
+  p_message text default null,
+  p_preferred_viewing timestamptz default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  listing_record public.unit_listings%rowtype;
+  new_lead_id uuid;
+  lead_status text;
+  notify_message text;
+begin
+  if nullif(trim(p_name), '') is null or nullif(trim(p_email), '') is null or nullif(trim(p_phone), '') is null then
+    raise exception 'Please enter your name, email, and phone number.';
+  end if;
+
+  select *
+    into listing_record
+  from public.unit_listings
+  where id = p_listing_id
+    and status = 'published'
+    and archived_at is null;
+
+  if listing_record.id is null then
+    raise exception 'This listing is no longer available.';
+  end if;
+
+  lead_status := case when p_preferred_viewing is null then 'new' else 'viewing_requested' end;
+
+  insert into public.listing_leads (
+    listing_id, unit_id, property_id, landlord_id, country_id,
+    manager_profile_id, management_company_id,
+    lead_name, lead_email, lead_phone, message, status
+  )
+  values (
+    listing_record.id, listing_record.unit_id, listing_record.property_id, listing_record.landlord_id, listing_record.country_id,
+    listing_record.manager_profile_id, listing_record.management_company_id,
+    trim(p_name), lower(trim(p_email)), trim(p_phone), nullif(trim(coalesce(p_message, '')), ''), lead_status
+  )
+  returning id into new_lead_id;
+
+  if p_preferred_viewing is not null then
+    insert into public.viewing_requests (
+      lead_id, listing_id, unit_id, property_id, landlord_id, country_id, requested_for, status
+    )
+    values (
+      new_lead_id, listing_record.id, listing_record.unit_id, listing_record.property_id, listing_record.landlord_id, listing_record.country_id, p_preferred_viewing, 'requested'
+    );
+  end if;
+
+  insert into public.lead_activity (lead_id, activity_type, details)
+  values (new_lead_id, 'created', case when p_preferred_viewing is null then 'Public enquiry submitted.' else 'Public viewing request submitted.' end);
+
+  notify_message := case when p_preferred_viewing is null
+    then 'New listing enquiry received from ' || trim(p_name) || '.'
+    else 'New viewing request received from ' || trim(p_name) || '.'
+  end;
+
+  insert into public.notifications (profile_id, landlord_id, type, message, related_id)
+  values (listing_record.landlord_id, listing_record.landlord_id, case when p_preferred_viewing is null then 'listing_lead_created'::public.notification_type else 'viewing_requested'::public.notification_type end, notify_message, new_lead_id);
+
+  if listing_record.manager_profile_id is not null and listing_record.manager_profile_id <> listing_record.landlord_id then
+    insert into public.notifications (profile_id, landlord_id, type, message, related_id)
+    values (listing_record.manager_profile_id, listing_record.landlord_id, case when p_preferred_viewing is null then 'listing_lead_created'::public.notification_type else 'viewing_requested'::public.notification_type end, notify_message, new_lead_id);
+  end if;
+
+  return new_lead_id;
+end;
+$$;
+
+drop function if exists public.get_manageable_listing_units();
+create or replace function public.get_manageable_listing_units()
+returns table (
+  unit_id uuid,
+  property_id uuid,
+  landlord_id uuid,
+  country_id uuid,
+  property_name text,
+  city text,
+  unit_number text,
+  bedrooms numeric,
+  bathrooms numeric,
+  monthly_rent numeric,
+  unit_status public.unit_status,
+  listing_id uuid,
+  listing_status text,
+  listing_title text,
+  public_area text,
+  availability_status text,
+  available_from date
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    u.id,
+    p.id,
+    p.landlord_id,
+    pr.country_id,
+    p.name,
+    p.city,
+    u.unit_number,
+    u.bedrooms,
+    u.bathrooms,
+    u.monthly_rent,
+    u.status,
+    ul.id,
+    ul.status,
+    ul.title,
+    ul.public_area,
+    ul.availability_status,
+    ul.available_from
+  from public.units u
+  join public.properties p on p.id = u.property_id
+  join public.profiles pr on pr.id = p.landlord_id
+  left join public.unit_listings ul on ul.unit_id = u.id and ul.archived_at is null
+  where p.archived_at is null
+    and u.archived_at is null
+    and public.crm_can_access_property(p.id)
+  order by p.name, u.unit_number
+$$;
+
+drop function if exists public.upsert_unit_listing(uuid, text, text, text, text, text, date, boolean, boolean, text[]);
+create or replace function public.upsert_unit_listing(
+  p_unit_id uuid,
+  p_status text,
+  p_title text,
+  p_summary text default null,
+  p_public_area text default null,
+  p_availability_status text default 'available',
+  p_available_from date default null,
+  p_show_rent boolean default true,
+  p_show_photos boolean default true,
+  p_photo_urls text[] default '{}'::text[]
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  unit_record record;
+  existing_id uuid;
+  saved_id uuid;
+  role_value public.user_role;
+begin
+  select u.id as unit_id, u.property_id, p.landlord_id, pr.country_id
+    into unit_record
+  from public.units u
+  join public.properties p on p.id = u.property_id
+  join public.profiles pr on pr.id = p.landlord_id
+  where u.id = p_unit_id
+    and u.archived_at is null
+    and p.archived_at is null;
+
+  if unit_record.unit_id is null then
+    raise exception 'Unit not found.';
+  end if;
+
+  if not public.crm_can_access_property(unit_record.property_id, 'can_publish_listings') then
+    raise exception 'You do not have permission to publish listings.';
+  end if;
+
+  role_value := public.current_profile_role();
+
+  select id into existing_id
+  from public.unit_listings
+  where unit_id = p_unit_id
+    and archived_at is null
+  limit 1;
+
+  if existing_id is null then
+    insert into public.unit_listings (
+      unit_id, property_id, landlord_id, country_id, published_by,
+      manager_profile_id, management_company_id, manager_role,
+      status, title, summary, public_area, availability_status,
+      available_from, show_rent, show_photos, photo_urls, published_at
+    )
+    values (
+      p_unit_id, unit_record.property_id, unit_record.landlord_id, unit_record.country_id, auth.uid(),
+      auth.uid(), public.current_management_company_id(),
+      case
+        when role_value = 'staff' then 'landlord_staff'
+        when role_value = 'management_leader' and public.current_management_company_id() is not null then 'pmc'
+        when role_value = 'management_staff' then 'pmc_staff'
+        when role_value = 'super_admin' then 'admin'
+        when role_value = 'admin_staff' then 'admin_staff'
+        else 'landlord'
+      end,
+      p_status, coalesce(nullif(trim(p_title), ''), 'Available unit'), nullif(trim(coalesce(p_summary, '')), ''), nullif(trim(coalesce(p_public_area, '')), ''), p_availability_status,
+      p_available_from, coalesce(p_show_rent, true), coalesce(p_show_photos, true), coalesce(p_photo_urls, '{}'::text[]),
+      case when p_status = 'published' then now() else null end
+    )
+    returning id into saved_id;
+  else
+    update public.unit_listings
+    set status = p_status,
+        title = coalesce(nullif(trim(p_title), ''), title),
+        summary = nullif(trim(coalesce(p_summary, '')), ''),
+        public_area = nullif(trim(coalesce(p_public_area, '')), ''),
+        availability_status = p_availability_status,
+        available_from = p_available_from,
+        show_rent = coalesce(p_show_rent, true),
+        show_photos = coalesce(p_show_photos, true),
+        photo_urls = coalesce(p_photo_urls, '{}'::text[]),
+        published_by = auth.uid(),
+        published_at = case when p_status = 'published' and published_at is null then now() else published_at end
+    where id = existing_id
+    returning id into saved_id;
+  end if;
+
+  return saved_id;
+end;
+$$;
+
+drop function if exists public.get_listing_leads(text);
+create or replace function public.get_listing_leads(p_status text default null)
+returns table (
+  lead_id uuid,
+  listing_id uuid,
+  unit_id uuid,
+  property_id uuid,
+  landlord_id uuid,
+  country_id uuid,
+  country_name text,
+  property_name text,
+  city text,
+  unit_number text,
+  listing_title text,
+  lead_name text,
+  lead_email text,
+  lead_phone text,
+  message text,
+  status text,
+  saved boolean,
+  requested_for timestamptz,
+  scheduled_for timestamptz,
+  followup_due_at timestamptz,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    ll.id,
+    ll.listing_id,
+    ll.unit_id,
+    ll.property_id,
+    ll.landlord_id,
+    ll.country_id,
+    c.name,
+    p.name,
+    p.city,
+    u.unit_number,
+    ul.title,
+    ll.lead_name,
+    ll.lead_email,
+    ll.lead_phone,
+    ll.message,
+    ll.status,
+    ll.saved,
+    vr.requested_for,
+    vr.scheduled_for,
+    lf.due_at,
+    ll.created_at
+  from public.listing_leads ll
+  join public.unit_listings ul on ul.id = ll.listing_id
+  join public.properties p on p.id = ll.property_id
+  join public.units u on u.id = ll.unit_id
+  left join public.countries c on c.id = ll.country_id
+  left join lateral (
+    select requested_for, scheduled_for
+    from public.viewing_requests
+    where lead_id = ll.id
+    order by created_at desc
+    limit 1
+  ) vr on true
+  left join lateral (
+    select due_at
+    from public.lead_followups
+    where lead_id = ll.id and status = 'open'
+    order by due_at asc
+    limit 1
+  ) lf on true
+  where public.crm_can_access_property(ll.property_id)
+    and (p_status is null or p_status = '' or ll.status = p_status)
+  order by ll.created_at desc
+$$;
+
+drop function if exists public.set_listing_lead_status(uuid, text, text);
+create or replace function public.set_listing_lead_status(p_lead_id uuid, p_status text, p_lost_reason text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_status not in ('new', 'viewing_requested', 'viewing_scheduled', 'follow_up', 'converted', 'lost') then
+    raise exception 'Invalid lead status.';
+  end if;
+
+  if not public.crm_can_access_lead(p_lead_id, 'can_manage_leads') then
+    raise exception 'You do not have permission to manage leads.';
+  end if;
+
+  update public.listing_leads
+  set status = p_status,
+      lost_reason = case when p_status = 'lost' then nullif(trim(coalesce(p_lost_reason, '')), '') else lost_reason end
+  where id = p_lead_id;
+
+  insert into public.lead_activity (lead_id, actor_profile_id, activity_type, details)
+  values (p_lead_id, auth.uid(), 'status_changed', 'Lead marked as ' || replace(p_status, '_', ' ') || '.');
+end;
+$$;
+
+drop function if exists public.toggle_listing_lead_saved(uuid, boolean);
+create or replace function public.toggle_listing_lead_saved(p_lead_id uuid, p_saved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.crm_can_access_lead(p_lead_id, 'can_manage_leads') then
+    raise exception 'You do not have permission to manage leads.';
+  end if;
+
+  update public.listing_leads set saved = coalesce(p_saved, false) where id = p_lead_id;
+
+  insert into public.lead_activity (lead_id, actor_profile_id, activity_type, details)
+  values (p_lead_id, auth.uid(), case when coalesce(p_saved, false) then 'saved' else 'unsaved' end, 'Saved flag updated.');
+end;
+$$;
+
+drop function if exists public.schedule_listing_viewing(uuid, timestamptz, text);
+create or replace function public.schedule_listing_viewing(p_lead_id uuid, p_scheduled_for timestamptz, p_notes text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lead_record public.listing_leads%rowtype;
+begin
+  if p_scheduled_for is null then
+    raise exception 'Choose a viewing date and time.';
+  end if;
+
+  if not public.crm_can_access_lead(p_lead_id, 'can_schedule_viewings') then
+    raise exception 'You do not have permission to schedule viewings.';
+  end if;
+
+  select * into lead_record from public.listing_leads where id = p_lead_id;
+
+  insert into public.viewing_requests (
+    lead_id, listing_id, unit_id, property_id, landlord_id, country_id, scheduled_for, status, notes, created_by
+  )
+  values (
+    lead_record.id, lead_record.listing_id, lead_record.unit_id, lead_record.property_id, lead_record.landlord_id, lead_record.country_id, p_scheduled_for, 'scheduled', nullif(trim(coalesce(p_notes, '')), ''), auth.uid()
+  );
+
+  update public.listing_leads set status = 'viewing_scheduled' where id = p_lead_id;
+
+  insert into public.lead_activity (lead_id, actor_profile_id, activity_type, details)
+  values (p_lead_id, auth.uid(), 'viewing_scheduled', 'Viewing scheduled.');
+end;
+$$;
+
+drop function if exists public.add_listing_lead_followup(uuid, timestamptz, text, uuid);
+create or replace function public.add_listing_lead_followup(p_lead_id uuid, p_due_at timestamptz, p_note text, p_assigned_to uuid default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  followup_id uuid;
+  lead_record public.listing_leads%rowtype;
+begin
+  if p_due_at is null or nullif(trim(coalesce(p_note, '')), '') is null then
+    raise exception 'Enter a follow-up date and note.';
+  end if;
+
+  if not public.crm_can_access_lead(p_lead_id, 'can_manage_leads') then
+    raise exception 'You do not have permission to manage leads.';
+  end if;
+
+  select * into lead_record from public.listing_leads where id = p_lead_id;
+
+  insert into public.lead_followups (lead_id, due_at, assigned_to, note, created_by)
+  values (p_lead_id, p_due_at, coalesce(p_assigned_to, auth.uid()), trim(p_note), auth.uid())
+  returning id into followup_id;
+
+  update public.listing_leads set status = 'follow_up' where id = p_lead_id;
+
+  insert into public.lead_activity (lead_id, actor_profile_id, activity_type, details)
+  values (p_lead_id, auth.uid(), 'followup_added', 'Follow-up reminder added.');
+
+  insert into public.notifications (profile_id, landlord_id, type, message, related_id)
+  values (coalesce(p_assigned_to, auth.uid()), lead_record.landlord_id, 'lead_followup_due'::public.notification_type, 'Lead follow-up reminder created.', followup_id);
+
+  return followup_id;
+end;
+$$;
+
+drop function if exists public.complete_listing_followup(uuid);
+create or replace function public.complete_listing_followup(p_followup_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lead_id_value uuid;
+begin
+  select lead_id into lead_id_value from public.lead_followups where id = p_followup_id;
+
+  if lead_id_value is null then
+    raise exception 'Follow-up not found.';
+  end if;
+
+  if not public.crm_can_access_lead(lead_id_value, 'can_manage_leads') then
+    raise exception 'You do not have permission to manage leads.';
+  end if;
+
+  update public.lead_followups
+  set status = 'done', completed_at = now()
+  where id = p_followup_id;
+
+  insert into public.lead_activity (lead_id, actor_profile_id, activity_type, details)
+  values (lead_id_value, auth.uid(), 'followup_completed', 'Follow-up marked done.');
+end;
+$$;
+
+drop function if exists public.convert_listing_lead(uuid);
+create or replace function public.convert_listing_lead(p_lead_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lead_record public.listing_leads%rowtype;
+  tenant_request_id uuid;
+begin
+  if not public.crm_can_access_lead(p_lead_id, 'can_manage_leads') then
+    raise exception 'You do not have permission to convert leads.';
+  end if;
+
+  select * into lead_record from public.listing_leads where id = p_lead_id;
+
+  if lead_record.id is null then
+    raise exception 'Lead not found.';
+  end if;
+
+  begin
+    select public.create_tenant_invite(
+      lead_record.landlord_id,
+      lead_record.lead_name,
+      lead_record.lead_phone,
+      lead_record.lead_email,
+      ''
+    ) into tenant_request_id;
+  exception when others then
+    tenant_request_id := null;
+  end;
+
+  update public.listing_leads
+  set status = 'converted',
+      converted_by = auth.uid(),
+      converted_at = now(),
+      converted_tenant_request_id = tenant_request_id
+  where id = p_lead_id;
+
+  insert into public.lead_activity (lead_id, actor_profile_id, activity_type, details)
+  values (p_lead_id, auth.uid(), 'converted', 'Lead converted to tenant-link request.');
+
+  return tenant_request_id;
+end;
+$$;
+
 alter table public.countries enable row level security;
 alter table public.pricing_plans enable row level security;
 alter table public.profiles enable row level security;
@@ -7418,6 +8284,11 @@ alter table public.maintenance_quotes enable row level security;
 alter table public.maintenance_activity enable row level security;
 alter table public.property_inspections enable row level security;
 alter table public.inspection_files enable row level security;
+alter table public.unit_listings enable row level security;
+alter table public.listing_leads enable row level security;
+alter table public.viewing_requests enable row level security;
+alter table public.lead_followups enable row level security;
+alter table public.lead_activity enable row level security;
 alter table public.notifications enable row level security;
 alter table public.tenant_applications enable row level security;
 alter table public.tenant_documents enable row level security;
@@ -7425,6 +8296,80 @@ alter table public.lease_lifecycle_items enable row level security;
 alter table public.deposit_settlements enable row level security;
 alter table public.tenant_reference_requests enable row level security;
 alter table public.telegram_link_tokens enable row level security;
+
+drop policy if exists "unit listings public published read" on public.unit_listings;
+create policy "unit listings public published read"
+on public.unit_listings for select to anon, authenticated
+using (status = 'published' and archived_at is null);
+
+drop policy if exists "unit listings crm read" on public.unit_listings;
+create policy "unit listings crm read"
+on public.unit_listings for select to authenticated
+using (public.crm_can_access_property(property_id));
+
+drop policy if exists "unit listings crm insert" on public.unit_listings;
+create policy "unit listings crm insert"
+on public.unit_listings for insert to authenticated
+with check (public.crm_can_access_property(property_id, 'can_publish_listings'));
+
+drop policy if exists "unit listings crm update" on public.unit_listings;
+create policy "unit listings crm update"
+on public.unit_listings for update to authenticated
+using (public.crm_can_access_property(property_id, 'can_publish_listings'))
+with check (public.crm_can_access_property(property_id, 'can_publish_listings'));
+
+drop policy if exists "listing leads crm read" on public.listing_leads;
+create policy "listing leads crm read"
+on public.listing_leads for select to authenticated
+using (public.crm_can_access_property(property_id));
+
+drop policy if exists "listing leads crm update" on public.listing_leads;
+create policy "listing leads crm update"
+on public.listing_leads for update to authenticated
+using (public.crm_can_access_property(property_id, 'can_manage_leads'))
+with check (public.crm_can_access_property(property_id, 'can_manage_leads'));
+
+drop policy if exists "viewing requests crm read" on public.viewing_requests;
+create policy "viewing requests crm read"
+on public.viewing_requests for select to authenticated
+using (public.crm_can_access_property(property_id));
+
+drop policy if exists "viewing requests crm insert" on public.viewing_requests;
+create policy "viewing requests crm insert"
+on public.viewing_requests for insert to authenticated
+with check (public.crm_can_access_property(property_id, 'can_schedule_viewings'));
+
+drop policy if exists "viewing requests crm update" on public.viewing_requests;
+create policy "viewing requests crm update"
+on public.viewing_requests for update to authenticated
+using (public.crm_can_access_property(property_id, 'can_schedule_viewings'))
+with check (public.crm_can_access_property(property_id, 'can_schedule_viewings'));
+
+drop policy if exists "lead followups crm read" on public.lead_followups;
+create policy "lead followups crm read"
+on public.lead_followups for select to authenticated
+using (public.crm_can_access_lead(lead_id));
+
+drop policy if exists "lead followups crm insert" on public.lead_followups;
+create policy "lead followups crm insert"
+on public.lead_followups for insert to authenticated
+with check (public.crm_can_access_lead(lead_id, 'can_manage_leads'));
+
+drop policy if exists "lead followups crm update" on public.lead_followups;
+create policy "lead followups crm update"
+on public.lead_followups for update to authenticated
+using (public.crm_can_access_lead(lead_id, 'can_manage_leads'))
+with check (public.crm_can_access_lead(lead_id, 'can_manage_leads'));
+
+drop policy if exists "lead activity crm read" on public.lead_activity;
+create policy "lead activity crm read"
+on public.lead_activity for select to authenticated
+using (public.crm_can_access_lead(lead_id));
+
+drop policy if exists "lead activity crm insert" on public.lead_activity;
+create policy "lead activity crm insert"
+on public.lead_activity for insert to authenticated
+with check (public.crm_can_access_lead(lead_id));
 
 drop policy if exists "countries super admin all" on public.countries;
 create policy "countries super admin all"
@@ -12280,12 +13225,28 @@ grant execute on function public.can_read_maintenance_photo(text) to authenticat
 grant execute on function public.can_manage_maintenance_photo(text) to authenticated;
 grant all on public.property_inspections to authenticated;
 grant all on public.inspection_files to authenticated;
+grant select, insert, update on public.unit_listings to authenticated;
+grant select, insert, update on public.listing_leads to authenticated;
+grant select, insert, update on public.viewing_requests to authenticated;
+grant select, insert, update on public.lead_followups to authenticated;
+grant select, insert on public.lead_activity to authenticated;
 grant execute on function public.inspection_file_inspection_id(text) to authenticated;
 grant execute on function public.can_access_inspection(uuid) to authenticated;
 grant execute on function public.can_manage_inspection(uuid) to authenticated;
 grant execute on function public.can_read_inspection_file(text) to authenticated;
 grant execute on function public.can_manage_inspection_file(text) to authenticated;
 grant execute on function public.tenant_sign_inspection(uuid, text) to authenticated;
+grant execute on function public.get_public_unit_listings(uuid, text, numeric, numeric, numeric, text) to anon, authenticated;
+grant execute on function public.submit_listing_lead(uuid, text, text, text, text, timestamptz) to anon, authenticated;
+grant execute on function public.get_manageable_listing_units() to authenticated;
+grant execute on function public.upsert_unit_listing(uuid, text, text, text, text, text, date, boolean, boolean, text[]) to authenticated;
+grant execute on function public.get_listing_leads(text) to authenticated;
+grant execute on function public.set_listing_lead_status(uuid, text, text) to authenticated;
+grant execute on function public.toggle_listing_lead_saved(uuid, boolean) to authenticated;
+grant execute on function public.schedule_listing_viewing(uuid, timestamptz, text) to authenticated;
+grant execute on function public.add_listing_lead_followup(uuid, timestamptz, text, uuid) to authenticated;
+grant execute on function public.complete_listing_followup(uuid) to authenticated;
+grant execute on function public.convert_listing_lead(uuid) to authenticated;
 revoke execute on function public.attach_payment_proof(uuid, text, text, integer) from public, anon;
 revoke execute on function public.attach_payment_record_proof(uuid, text, text, integer) from public, anon;
 revoke execute on function public.attach_maintenance_photo(uuid, text, text, integer) from public, anon;
@@ -12366,6 +13327,11 @@ begin
     'maintenance_activity',
     'property_inspections',
     'inspection_files',
+    'unit_listings',
+    'listing_leads',
+    'viewing_requests',
+    'lead_followups',
+    'lead_activity',
     'notifications',
     'staff_permissions',
     'staff_landlord_requests',

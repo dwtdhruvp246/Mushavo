@@ -588,6 +588,7 @@
               <button x-show="profile?.role === 'super_admin'" class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-pricing' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-pricing')">Pricing</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-tenants' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-tenants')">Tenants</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-enquiries' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-enquiries')">Enquiries</button>
+              <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-leads' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-leads')">Leads</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-notes' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-notes')">Notes</button>
               <button x-show="profile?.role === 'super_admin'" class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-team' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-team')">Staff</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-staff' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-staff')">IPM</button>
@@ -1940,6 +1941,77 @@
                           <button x-show="enquiry.status !== 'in_progress'" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="updateEnquiryStatus(enquiry, 'in_progress')">In Progress</button>
                           <button x-show="enquiry.status !== 'resolved'" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="updateEnquiryStatus(enquiry, 'resolved')">Resolved</button>
                           <button x-show="enquiry.status !== 'archived'" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="updateEnquiryStatus(enquiry, 'archived')">Archive</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section x-show="currentPage === 'admin-leads'" id="super-admin-leads" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[1800px]">
+          <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 class="text-2xl font-bold text-slate-900">Listing Leads</h1>
+              <p class="mt-1 text-sm text-slate-600">Review public listing enquiries and viewing requests. Admin staff only see assigned-country leads.</p>
+            </div>
+            <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="loadLeadsPage" :disabled="leads.loading">Refresh</button>
+          </div>
+
+          <template x-if="leads.error">
+            <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" x-text="leads.error"></div>
+          </template>
+          <template x-if="leads.message">
+            <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700" x-text="leads.message"></div>
+          </template>
+
+          <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">New Leads</p><p class="mt-2 text-3xl font-bold text-amber-700" x-text="leadStats().new"></p></div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">Viewing Requests</p><p class="mt-2 text-3xl font-bold text-slate-900" x-text="leadStats().viewing"></p></div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">Follow Ups</p><p class="mt-2 text-3xl font-bold text-orange-700" x-text="leadStats().followUps"></p></div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">Converted</p><p class="mt-2 text-3xl font-bold text-emerald-700" x-text="leadStats().converted"></p></div>
+          </div>
+
+          <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
+            <div class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
+              <label class="block">
+                <span class="mb-2 block text-sm font-medium text-slate-700">Status</span>
+                <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="leads.filterStatus" @change="loadLeadsPage" x-effect='$nextTick(() => { $el.value = leads.filterStatus ?? "" })'>
+                  <option value="">All statuses</option>
+                  <template x-for="status in leadStatusOptions()" :key="status.value">
+                    <option :value="status.value" x-text="status.label"></option>
+                  </template>
+                </select>
+              </label>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-[1100px] w-full divide-y divide-slate-200 text-left text-[13px]">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr><th class="px-4 py-3 font-semibold">Lead</th><th class="px-4 py-3 font-semibold">Listing</th><th class="px-4 py-3 font-semibold">Country</th><th class="px-4 py-3 font-semibold">Status</th><th class="px-4 py-3 font-semibold">Viewing</th><th class="px-4 py-3 font-semibold">Follow Up</th><th class="px-4 py-3 font-semibold">Actions</th></tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <template x-if="!leads.loading && leads.items.length === 0">
+                    <tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="7">No listing leads yet.</td></tr>
+                  </template>
+                  <template x-for="lead in leads.items" :key="lead.lead_id">
+                    <tr class="odd:bg-white even:bg-slate-50/60 align-top">
+                      <td class="px-4 py-3"><p class="font-semibold text-slate-900" x-text="lead.lead_name"></p><p class="text-xs text-slate-500" x-text="lead.lead_email"></p><p class="text-xs text-slate-500" x-text="lead.lead_phone || '-'"></p></td>
+                      <td class="px-4 py-3"><p class="font-semibold text-slate-900" x-text="lead.listing_title || lead.property_name"></p><p class="text-xs text-slate-500" x-text="`${lead.property_name || '-'} / Unit ${lead.unit_number || '-'}`"></p><p class="mt-1 max-w-xs whitespace-normal break-words text-xs text-slate-600" x-text="lead.message || '-'"></p></td>
+                      <td class="px-4 py-3 text-slate-700" x-text="lead.country_name || '-'"></td>
+                      <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="leadStatusBadgeClass(lead.status)" x-text="leadStatusLabel(lead.status)"></span></td>
+                      <td class="px-4 py-3 text-slate-700"><p x-text="lead.scheduled_for ? formatDateTime(lead.scheduled_for) : (lead.requested_for ? `Requested ${formatDateTime(lead.requested_for)}` : '-')"></p></td>
+                      <td class="px-4 py-3 text-slate-700" x-text="lead.followup_due_at ? formatDateTime(lead.followup_due_at) : '-'"></td>
+                      <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-2">
+                          <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="toggleLeadSaved(lead)" x-text="lead.saved ? 'Unsave' : 'Save'"></button>
+                          <select class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700" :value="lead.status" @change="updateLeadStatus(lead, $event.target.value)">
+                            <template x-for="status in leadStatusOptions()" :key="`lead-status-${lead.lead_id}-${status.value}`"><option :value="status.value" x-text="status.label"></option></template>
+                          </select>
+                          <button class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100" type="button" @click="promptScheduleLead(lead)">Schedule</button>
+                          <button class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100" type="button" @click="promptLeadFollowup(lead)">Follow Up</button>
+                          <button x-show="lead.status !== 'converted'" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="convertListingLead(lead)">Convert</button>
                         </div>
                       </td>
                     </tr>
@@ -4383,6 +4455,137 @@
                 </div>
               </template>
 
+              <template x-if="currentPage === 'leads'">
+                <div class="space-y-6">
+                  <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <h1 class="text-xl font-bold text-slate-900">Leads</h1>
+                        <p class="mt-1 text-sm text-slate-500">Publish available units, review enquiries, and manage viewing follow-ups.</p>
+                      </div>
+                      <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="loadLeadsPage" :disabled="leads.loading">Refresh</button>
+                    </div>
+
+                    <template x-if="leads.error">
+                      <div class="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" x-text="leads.error"></div>
+                    </template>
+                    <template x-if="leads.message">
+                      <div class="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700" x-text="leads.message"></div>
+                    </template>
+                  </section>
+
+                  <section x-show="canPublishListings()" class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
+                    <div class="mb-4">
+                      <h2 class="text-base font-bold text-slate-900">Publish Unit Listing</h2>
+                      <p class="mt-1 text-sm text-slate-500">Public listings hide the exact address and only show safe vacancy details.</p>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                      <label class="block xl:col-span-2">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Unit</span>
+                        <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="leads.listingForm.unitId" @change="syncListingFormUnit" x-effect='$nextTick(() => { $el.value = leads.listingForm.unitId ?? "" })'>
+                          <option value="">Select unit</option>
+                          <template x-for="unit in leads.units" :key="unit.unit_id">
+                            <option :value="unit.unit_id" x-text="`${unit.property_name} / Unit ${unit.unit_number} - ${formatCurrency(unit.rent || 0)}`"></option>
+                          </template>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Listing status</span>
+                        <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="leads.listingForm.status" x-effect='$nextTick(() => { $el.value = leads.listingForm.status ?? "draft" })'>
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                          <option value="paused">Paused</option>
+                        </select>
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Availability</span>
+                        <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="leads.listingForm.availabilityStatus" x-effect='$nextTick(() => { $el.value = leads.listingForm.availabilityStatus ?? "available" })'>
+                          <option value="available">Available</option>
+                          <option value="available_soon">Available soon</option>
+                        </select>
+                      </label>
+                      <label class="block md:col-span-2">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Title</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="leads.listingForm.title" placeholder="Example: Neat 2-bedroom unit in Avondale">
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Public area</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="leads.listingForm.publicArea" placeholder="Area only, not exact address">
+                      </label>
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Available from</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="date" x-model="leads.listingForm.availableFrom">
+                      </label>
+                      <label class="block md:col-span-2 xl:col-span-4">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Summary</span>
+                        <textarea class="min-h-24 w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="leads.listingForm.summary" placeholder="Short public description"></textarea>
+                      </label>
+                      <label class="block md:col-span-2 xl:col-span-4">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Photo URLs</span>
+                        <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model.trim="leads.listingForm.photoUrls" placeholder="Optional, comma separated">
+                      </label>
+                      <div class="flex flex-wrap gap-4 md:col-span-2 xl:col-span-4">
+                        <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="leads.listingForm.showRent"> Show rent publicly</label>
+                        <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="leads.listingForm.showPhotos"> Show approved photos</label>
+                      </div>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                      <button class="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60" type="button" @click="saveUnitListing" :disabled="leads.saving">Save Listing</button>
+                      <button class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="resetListingForm">Clear</button>
+                    </div>
+                  </section>
+
+                  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">New Leads</p><p class="mt-2 text-3xl font-bold text-amber-700" x-text="leadStats().new"></p></div>
+                    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">Viewing Requests</p><p class="mt-2 text-3xl font-bold text-slate-900" x-text="leadStats().viewing"></p></div>
+                    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">Follow Ups</p><p class="mt-2 text-3xl font-bold text-orange-700" x-text="leadStats().followUps"></p></div>
+                    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft"><p class="text-sm text-slate-500">Converted</p><p class="mt-2 text-3xl font-bold text-emerald-700" x-text="leadStats().converted"></p></div>
+                  </div>
+
+                  <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
+                    <div class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <label class="block">
+                        <span class="mb-2 block text-sm font-medium text-slate-700">Status</span>
+                        <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="leads.filterStatus" @change="loadLeadsPage" x-effect='$nextTick(() => { $el.value = leads.filterStatus ?? "" })'>
+                          <option value="">All statuses</option>
+                          <template x-for="status in leadStatusOptions()" :key="status.value"><option :value="status.value" x-text="status.label"></option></template>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="overflow-x-auto">
+                      <table class="min-w-[1100px] w-full divide-y divide-slate-200 text-left text-[13px]">
+                        <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr><th class="px-4 py-3 font-semibold">Lead</th><th class="px-4 py-3 font-semibold">Listing</th><th class="px-4 py-3 font-semibold">Status</th><th class="px-4 py-3 font-semibold">Viewing</th><th class="px-4 py-3 font-semibold">Follow Up</th><th class="px-4 py-3 font-semibold">Actions</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                          <template x-if="!leads.loading && leads.items.length === 0"><tr><td class="px-4 py-8 text-center text-sm text-slate-500" colspan="6">No listing leads yet.</td></tr></template>
+                          <template x-for="lead in leads.items" :key="lead.lead_id">
+                            <tr class="odd:bg-white even:bg-slate-50/60 align-top">
+                              <td class="px-4 py-3"><p class="font-semibold text-slate-900" x-text="lead.lead_name"></p><p class="text-xs text-slate-500" x-text="lead.lead_email"></p><p class="text-xs text-slate-500" x-text="lead.lead_phone || '-'"></p></td>
+                              <td class="px-4 py-3"><p class="font-semibold text-slate-900" x-text="lead.listing_title || lead.property_name"></p><p class="text-xs text-slate-500" x-text="`${lead.property_name || '-'} / Unit ${lead.unit_number || '-'}`"></p><p class="mt-1 max-w-xs whitespace-normal break-words text-xs text-slate-600" x-text="lead.message || '-'"></p></td>
+                              <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="leadStatusBadgeClass(lead.status)" x-text="leadStatusLabel(lead.status)"></span></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="lead.scheduled_for ? formatDateTime(lead.scheduled_for) : (lead.requested_for ? `Requested ${formatDateTime(lead.requested_for)}` : '-')"></td>
+                              <td class="px-4 py-3 text-slate-700" x-text="lead.followup_due_at ? formatDateTime(lead.followup_due_at) : '-'"></td>
+                              <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-2">
+                                  <button x-show="canManageLeads()" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="toggleLeadSaved(lead)" x-text="lead.saved ? 'Unsave' : 'Save'"></button>
+                                  <select x-show="canManageLeads()" class="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700" :value="lead.status" @change="updateLeadStatus(lead, $event.target.value)">
+                                    <template x-for="status in leadStatusOptions()" :key="`app-lead-status-${lead.lead_id}-${status.value}`"><option :value="status.value" x-text="status.label"></option></template>
+                                  </select>
+                                  <button x-show="canScheduleViewings()" class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100" type="button" @click="promptScheduleLead(lead)">Schedule</button>
+                                  <button x-show="canManageLeads()" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100" type="button" @click="promptLeadFollowup(lead)">Follow Up</button>
+                                  <button x-show="canManageLeads() && lead.status !== 'converted'" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="convertListingLead(lead)">Convert</button>
+                                </div>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </template>
+
               <template x-if="currentPage === 'maintenance'">
                 <div class="space-y-6">
                   <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
@@ -5107,6 +5310,9 @@
                               <label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="staff.form.canAssignMaintenance"> Assign maintenance</label>
                               <label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="staff.form.canAddResolutionNotes"> Add resolution notes</label>
                               <label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="staff.form.canManageStaff"> Manage staff</label>
+                              <label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="staff.form.canPublishListings"> Publish listings</label>
+                              <label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="staff.form.canManageLeads"> Manage leads</label>
+                              <label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input type="checkbox" x-model="staff.form.canScheduleViewings"> Schedule viewings</label>
                             </div>
                           </div>
                         </section>
@@ -6434,7 +6640,41 @@
             canVerifyPayments: false,
             canManageLeases: false,
             canManageStaff: false,
+            canPublishListings: false,
+            canManageLeads: false,
+            canScheduleViewings: false,
             canViewFinance: false
+          }
+        },
+        leads: {
+          loading: false,
+          saving: false,
+          error: '',
+          message: '',
+          items: [],
+          units: [],
+          filterStatus: '',
+          listingForm: {
+            unitId: '',
+            status: 'draft',
+            title: '',
+            summary: '',
+            publicArea: '',
+            availabilityStatus: 'available',
+            availableFrom: '',
+            showRent: true,
+            showPhotos: true,
+            photoUrls: ''
+          },
+          scheduleLead: null,
+          scheduleForm: {
+            scheduledFor: '',
+            notes: ''
+          },
+          followupLead: null,
+          followupForm: {
+            dueAt: '',
+            note: ''
           }
         },
         notifications: {
@@ -11169,6 +11409,7 @@
             { page: 'payments', label: partnerMode ? 'Landlord Payments' : 'Payments', icon: 'card', visible: this.canShowAppPage('payments') },
             { page: 'finance', label: partnerMode ? 'Personal Finance' : 'Finance', icon: 'chart', visible: this.canShowAppPage('finance') },
             { page: 'maintenance', label: 'Maintenance', icon: 'wrench', visible: this.canShowAppPage('maintenance') },
+            { page: 'leads', label: 'Leads', icon: 'users', visible: this.canShowAppPage('leads') },
             { page: 'management-landlords', label: 'Landlords', icon: 'building', visible: this.profile?.role === 'management_leader' || (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') },
             { page: 'staff', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'landlord' || this.profile?.role === 'management_leader' || Boolean(this.permissions.can_manage_staff) },
             { page: 'notifications', label: 'Notifications', icon: 'bell', visible: true },
@@ -11187,6 +11428,7 @@
             { page: 'admin-pricing', label: 'Pricing', icon: 'card', visible: this.profile?.role === 'super_admin' },
             { page: 'admin-tenants', label: 'Tenants', icon: 'users', visible: true },
             { page: 'admin-enquiries', label: 'Enquiries', icon: 'file', visible: true },
+            { page: 'admin-leads', label: 'Leads', icon: 'users', visible: true },
             { page: 'admin-notes', label: 'Notes', icon: 'file', visible: true },
             { page: 'admin-team', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'super_admin' },
             { page: 'admin-staff', label: 'IPM', icon: 'account', visible: true },
@@ -11214,7 +11456,8 @@
             leases: true,
             payments: true,
             finance: this.profile?.role === 'landlord' || this.canUsePartnerFinance() || Boolean(this.permissions.can_view_finance),
-            maintenance: true
+            maintenance: true,
+            leads: true
           };
 
           return Boolean(permissionMap[page]);
@@ -11576,6 +11819,9 @@
             can_verify_payments: Boolean(row.can_verify_payments),
             can_manage_leases: Boolean(row.can_manage_leases),
             can_manage_staff: Boolean(row.can_manage_staff),
+            can_publish_listings: Boolean(row.can_publish_listings),
+            can_manage_leads: Boolean(row.can_manage_leads),
+            can_schedule_viewings: Boolean(row.can_schedule_viewings),
             can_view_finance: Boolean(row.can_view_finance)
           };
         },
@@ -15019,6 +15265,9 @@
             canVerifyPayments: false,
             canManageLeases: false,
             canManageStaff: false,
+            canPublishListings: false,
+            canManageLeads: false,
+            canScheduleViewings: false,
             canViewFinance: false
           };
         },
@@ -15060,6 +15309,9 @@
             can_verify_payments: Boolean(this.staff.form.canVerifyPayments),
             can_manage_leases: Boolean(this.staff.form.canManageLeases),
             can_manage_staff: Boolean(this.staff.form.canManageStaff),
+            can_publish_listings: Boolean(this.staff.form.canPublishListings),
+            can_manage_leads: Boolean(this.staff.form.canManageLeads),
+            can_schedule_viewings: Boolean(this.staff.form.canScheduleViewings),
             can_view_finance: Boolean(this.staff.form.canViewFinance)
           };
         },
@@ -15101,6 +15353,9 @@
             canVerifyPayments: Boolean(member.can_verify_payments),
             canManageLeases: Boolean(member.can_manage_leases),
             canManageStaff: Boolean(member.can_manage_staff),
+            canPublishListings: Boolean(member.can_publish_listings),
+            canManageLeads: Boolean(member.can_manage_leads),
+            canScheduleViewings: Boolean(member.can_schedule_viewings),
             canViewFinance: Boolean(member.can_view_finance)
           };
         },
@@ -15201,8 +15456,8 @@
           this.beginDataLoad('staff', this.staff);
           this.staff.error = '';
 
-          const permissionSelect = 'id, landlord_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_view_finance, invited_at, accepted_at, status, staff_profile:profiles!staff_permissions_staff_profile_id_fkey(id, full_name, phone, email, role, staff_type, staff_max_properties_per_landlord, created_at)';
-          const managementPermissionSelect = 'id, management_company_id, leader_profile_id, landlord_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_view_finance, status, accepted_at, company:management_companies!management_landlord_permissions_management_company_id_fkey(id, company_name, phone), leader:profiles!management_landlord_permissions_leader_profile_id_fkey(id, full_name, email, phone)';
+          const permissionSelect = 'id, landlord_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_publish_listings, can_manage_leads, can_schedule_viewings, can_view_finance, invited_at, accepted_at, status, staff_profile:profiles!staff_permissions_staff_profile_id_fkey(id, full_name, phone, email, role, staff_type, staff_max_properties_per_landlord, created_at)';
+          const managementPermissionSelect = 'id, management_company_id, leader_profile_id, landlord_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_publish_listings, can_manage_leads, can_schedule_viewings, can_view_finance, status, accepted_at, company:management_companies!management_landlord_permissions_management_company_id_fkey(id, company_name, phone), leader:profiles!management_landlord_permissions_leader_profile_id_fkey(id, full_name, email, phone)';
           const [propertiesResult, permissionsResult, requestsResult, inviteTokensResult, managementPermissionsResult, managementRequestsResult] = await Promise.all([
             supabaseClient.from('properties').select('id, name, address, city').is('archived_at', null).order('name', { ascending: true }),
             supabaseClient.from('staff_permissions').select(permissionSelect).eq('landlord_id', this.currentLandlordId()).order('accepted_at', { ascending: false }),
@@ -15327,7 +15582,7 @@
           await this.loadManagementPermissions(this.profile.id);
 
           if (this.managementContext.company?.id) {
-            const staffSelect = 'id, management_company_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_view_finance, invited_at, accepted_at, status, staff_profile:profiles!management_staff_permissions_staff_profile_id_fkey(id, landlord_id, full_name, phone, email, role, created_at)';
+            const staffSelect = 'id, management_company_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_publish_listings, can_manage_leads, can_schedule_viewings, can_view_finance, invited_at, accepted_at, status, staff_profile:profiles!management_staff_permissions_staff_profile_id_fkey(id, landlord_id, full_name, phone, email, role, created_at)';
             const [propertiesResult, tenantsResult, leasesResult, staffResult, inviteTokensResult] = await Promise.all([
               supabaseClient.from('properties').select('id, landlord_id, name, address, city, created_at').is('archived_at', null).order('name', { ascending: true }),
               supabaseClient.from('tenants').select('id, landlord_id, profile_id, country_id, full_name, phone, email, id_number, invite_accepted, created_at, archived_at').is('archived_at', null).order('full_name', { ascending: true }),
@@ -18034,7 +18289,8 @@
               'admin-finance': ['platform_payments', 'partner_payments', 'partner_reconciliations', 'profiles', 'countries', 'pricing_plans'],
               'admin-pricing': ['pricing_plans', 'countries'],
               'admin-tenants': ['tenants', 'profiles', 'countries'],
-              'admin-enquiries': ['enquiries', 'countries', 'admin_staff_country_assignments'],
+            'admin-enquiries': ['enquiries', 'countries', 'admin_staff_country_assignments'],
+              'admin-leads': ['unit_listings', 'listing_leads', 'viewing_requests', 'lead_followups', 'lead_activity', 'properties', 'units', 'profiles', 'countries', 'admin_staff_country_assignments'],
               'admin-notes': ['admin_notes', 'profiles'],
               'admin-team': ['profiles', 'admin_staff_country_assignments', 'countries'],
               'admin-staff': ['profiles', 'staff_permissions', 'staff_landlord_requests', 'platform_payments', 'countries'],
@@ -18061,6 +18317,7 @@
             payments: ['payments', 'payment_submissions', 'leases', 'tenants', 'units', 'properties'],
             finance: ['payments', 'leases', 'tenants', 'units', 'properties', 'partner_payments', 'partner_reconciliations'],
             maintenance: ['maintenance_requests', 'maintenance_quotes', 'maintenance_activity', 'properties', 'units', 'staff_permissions', 'management_staff_permissions'],
+            leads: ['unit_listings', 'listing_leads', 'viewing_requests', 'lead_followups', 'lead_activity', 'properties', 'units', 'profiles'],
             staff: ['staff_permissions', 'staff_landlord_requests', 'management_landlord_permissions', 'management_landlord_requests', 'invite_tokens', 'profiles'],
             'management-landlords': ['staff_landlord_requests', 'staff_permissions', 'management_landlord_requests', 'management_landlord_permissions', 'profiles', 'properties', 'tenants'],
             notifications: ['notifications', 'staff_landlord_requests', 'management_landlord_requests'],
@@ -18750,7 +19007,7 @@
             notes: company.notes || ''
           };
 
-          const permissionSelect = 'id, management_company_id, leader_profile_id, landlord_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_view_finance, status, accepted_at, landlord:profiles!management_landlord_permissions_landlord_id_fkey(id, full_name, email, phone, landlord_code)';
+          const permissionSelect = 'id, management_company_id, leader_profile_id, landlord_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_publish_listings, can_manage_leads, can_schedule_viewings, can_view_finance, status, accepted_at, landlord:profiles!management_landlord_permissions_landlord_id_fkey(id, full_name, email, phone, landlord_code)';
           const [permissionsResult, requestsResult] = await Promise.all([
             supabaseClient
               .from('management_landlord_permissions')
@@ -18791,7 +19048,7 @@
         },
 
         async loadManagementStaffPermissions(staffProfileId) {
-          const staffSelect = 'id, management_company_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_view_finance, status, company:management_companies!management_staff_permissions_management_company_id_fkey(id, leader_profile_id, country_id, company_name, subscription_status, subscription_expires_at, access_suspended_at)';
+          const staffSelect = 'id, management_company_id, staff_profile_id, all_properties, property_ids, can_view_properties, can_add_properties, can_edit_properties, can_archive_properties, can_view_units, can_add_units, can_edit_units, can_archive_units, can_mark_units_vacant, can_view_tenants, can_add_tenants, can_edit_tenants, can_archive_tenants, can_view_leases, can_create_leases, can_edit_leases, can_terminate_leases, can_view_lease_documents, can_upload_lease_documents, can_manage_maintenance, can_create_maintenance, can_assign_maintenance, can_add_resolution_notes, can_view_payments, can_log_payments, can_reject_payments, can_view_payment_proofs, can_verify_payments, can_manage_leases, can_manage_staff, can_publish_listings, can_manage_leads, can_schedule_viewings, can_view_finance, status, company:management_companies!management_staff_permissions_management_company_id_fkey(id, leader_profile_id, country_id, company_name, subscription_status, subscription_expires_at, access_suspended_at)';
           const { data: staffPermission, error: staffError } = await supabaseClient
             .from('management_staff_permissions')
             .select(staffSelect)
@@ -18862,9 +19119,226 @@
           }
         },
 
+        leadStatusOptions() {
+          return [
+            { value: 'new', label: 'New' },
+            { value: 'viewing_requested', label: 'Viewing Requested' },
+            { value: 'viewing_scheduled', label: 'Viewing Scheduled' },
+            { value: 'follow_up', label: 'Follow Up' },
+            { value: 'converted', label: 'Converted' },
+            { value: 'lost', label: 'Lost' }
+          ];
+        },
+
+        leadStatusLabel(status) {
+          return this.leadStatusOptions().find((option) => option.value === status)?.label || this.titleCase(status || 'new');
+        },
+
+        leadStatusBadgeClass(status) {
+          const classes = {
+            new: 'bg-emerald-100 text-emerald-700',
+            viewing_requested: 'bg-amber-100 text-amber-700',
+            viewing_scheduled: 'bg-sky-100 text-sky-700',
+            follow_up: 'bg-purple-100 text-purple-700',
+            converted: 'bg-teal-100 text-teal-700',
+            lost: 'bg-rose-100 text-rose-700'
+          };
+          return classes[status] || 'bg-slate-100 text-slate-600';
+        },
+
+        leadStats() {
+          const stats = { new: 0, viewing_requested: 0, viewing_scheduled: 0, follow_up: 0, converted: 0, lost: 0 };
+          (this.leads.items || []).forEach((lead) => {
+            const key = lead.status || 'new';
+            stats[key] = (stats[key] || 0) + 1;
+          });
+          return stats;
+        },
+
+        canPublishListings() {
+          if (['landlord', 'super_admin', 'admin_staff'].includes(this.profile?.role)) return true;
+          return Boolean(this.permissions?.canPublishListings || this.permissions?.can_publish_listings);
+        },
+
+        canManageLeads() {
+          if (['landlord', 'super_admin', 'admin_staff'].includes(this.profile?.role)) return true;
+          return Boolean(this.permissions?.canManageLeads || this.permissions?.can_manage_leads);
+        },
+
+        canScheduleViewings() {
+          if (this.canManageLeads()) return true;
+          return Boolean(this.permissions?.canScheduleViewings || this.permissions?.can_schedule_viewings);
+        },
+
+        resetListingForm() {
+          this.leads.listingForm = {
+            unitId: '',
+            status: 'draft',
+            title: '',
+            summary: '',
+            publicArea: '',
+            availabilityStatus: 'available',
+            availableFrom: '',
+            showRent: true,
+            showPhotos: true,
+            photoUrls: ''
+          };
+        },
+
+        syncListingFormUnit() {
+          const unit = (this.leads.units || []).find((item) => item.unit_id === this.leads.listingForm.unitId);
+          if (!unit) return;
+          this.leads.listingForm.title = unit.listing_title || `${unit.property_name} / Unit ${unit.unit_number}`;
+          this.leads.listingForm.publicArea = unit.public_area || unit.city || '';
+          this.leads.listingForm.availabilityStatus = unit.availability_status || (unit.unit_status === 'vacant' ? 'available' : 'available_soon');
+          this.leads.listingForm.availableFrom = unit.available_from || '';
+          this.leads.listingForm.status = unit.listing_status || 'draft';
+        },
+
+        async loadLeadsPage() {
+          this.leads.loading = true;
+          this.leads.error = '';
+          try {
+            const [leadResult, unitResult] = await Promise.all([
+              supabaseClient.rpc('get_listing_leads', { p_status: this.leads.filterStatus || null }),
+              this.canPublishListings()
+                ? supabaseClient.rpc('get_manageable_listing_units')
+                : Promise.resolve({ data: [], error: null })
+            ]);
+
+            if (leadResult.error) throw leadResult.error;
+            if (unitResult.error) throw unitResult.error;
+
+            this.leads.items = leadResult.data || [];
+            this.leads.units = unitResult.data || [];
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Listing leads could not be loaded.');
+          } finally {
+            this.leads.loading = false;
+          }
+        },
+
+        async saveUnitListing() {
+          this.leads.saving = true;
+          this.leads.error = '';
+          this.leads.message = '';
+          const form = this.leads.listingForm;
+          try {
+            const photoUrls = (form.photoUrls || '')
+              .split('\n')
+              .map((url) => url.trim())
+              .filter(Boolean);
+            const { error } = await supabaseClient.rpc('upsert_unit_listing', {
+              p_unit_id: form.unitId,
+              p_status: form.status,
+              p_title: form.title,
+              p_summary: form.summary || null,
+              p_public_area: form.publicArea || null,
+              p_availability_status: form.availabilityStatus,
+              p_available_from: form.availableFrom || null,
+              p_show_rent: Boolean(form.showRent),
+              p_show_photos: Boolean(form.showPhotos),
+              p_photo_urls: photoUrls
+            });
+            if (error) throw error;
+            this.leads.message = form.status === 'published' ? 'Listing published.' : 'Listing saved.';
+            this.resetListingForm();
+            await this.loadLeadsPage();
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Listing could not be saved.');
+          } finally {
+            this.leads.saving = false;
+          }
+        },
+
+        async updateLeadStatus(lead, status) {
+          this.leads.error = '';
+          try {
+            const { error } = await supabaseClient.rpc('set_listing_lead_status', {
+              p_lead_id: lead.lead_id,
+              p_status: status,
+              p_note: null
+            });
+            if (error) throw error;
+            await this.loadLeadsPage();
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Lead status could not be updated.');
+          }
+        },
+
+        async toggleLeadSaved(lead) {
+          this.leads.error = '';
+          try {
+            const { error } = await supabaseClient.rpc('toggle_listing_lead_saved', {
+              p_lead_id: lead.lead_id,
+              p_saved: !lead.saved
+            });
+            if (error) throw error;
+            lead.saved = !lead.saved;
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Lead could not be saved.');
+          }
+        },
+
+        async promptScheduleLead(lead) {
+          const value = window.prompt('Viewing date and time (YYYY-MM-DD HH:mm)');
+          if (!value) return;
+          this.leads.error = '';
+          try {
+            const { error } = await supabaseClient.rpc('schedule_listing_viewing', {
+              p_lead_id: lead.lead_id,
+              p_scheduled_for: new Date(value.replace(' ', 'T')).toISOString(),
+              p_notes: null
+            });
+            if (error) throw error;
+            await this.loadLeadsPage();
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Viewing could not be scheduled.');
+          }
+        },
+
+        async promptLeadFollowup(lead) {
+          const dueAt = window.prompt('Follow-up date and time (YYYY-MM-DD HH:mm)');
+          if (!dueAt) return;
+          const note = window.prompt('Follow-up note');
+          if (!note) return;
+          this.leads.error = '';
+          try {
+            const { error } = await supabaseClient.rpc('add_listing_lead_followup', {
+              p_lead_id: lead.lead_id,
+              p_due_at: new Date(dueAt.replace(' ', 'T')).toISOString(),
+              p_note: note,
+              p_assigned_to: null
+            });
+            if (error) throw error;
+            await this.loadLeadsPage();
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Follow-up could not be added.');
+          }
+        },
+
+        async convertListingLead(lead) {
+          const confirmed = await this.requestConfirm({
+            title: 'Convert lead',
+            message: 'Create a tenant-link request from this lead? This does not create a lease automatically.',
+            confirmText: 'Convert Lead',
+            tone: 'success'
+          });
+          if (!confirmed) return;
+          this.leads.error = '';
+          try {
+            const { error } = await supabaseClient.rpc('convert_listing_lead', { p_lead_id: lead.lead_id });
+            if (error) throw error;
+            await this.loadLeadsPage();
+          } catch (error) {
+            this.leads.error = this.friendlyDatabaseError(error, 'Lead could not be converted.');
+          }
+        },
+
         async refreshCurrentPage() {
           if (this.currentShell === 'super_admin') {
             await this.loadSuperAdminData();
+            if (this.currentPage === 'admin-leads') await this.loadLeadsPage();
             if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
             return;
           }
@@ -18875,6 +19349,7 @@
             if (this.currentPage === 'leases') await this.loadTenantLeaseData();
             if (this.currentPage === 'payments') await this.loadPaymentsData();
             if (this.currentPage === 'finance') await this.loadFinanceData();
+            if (this.currentPage === 'leads') await this.loadLeadsPage();
             if (this.currentPage === 'maintenance') await this.loadMaintenanceData();
             if (this.currentPage === 'management-landlords') await this.loadManagementPageData();
             if (this.currentPage === 'staff') await this.loadStaffData();
@@ -18919,9 +19394,14 @@
             await this.loadFinanceData();
           }
 
-          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-notes' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
+          if (page === 'leads' && this.currentShell === 'app') {
+            await this.loadLeadsPage();
+          }
+
+          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-leads' || page === 'admin-notes' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
             if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
             await this.loadSuperAdminData();
+            if (page === 'admin-leads') await this.loadLeadsPage();
           }
 
           if (page === 'maintenance' && this.currentShell === 'app') {
@@ -18979,6 +19459,7 @@
             leases: 'Leases',
             payments: 'Payments',
             finance: 'Finance',
+            leads: 'Leads',
             maintenance: 'Maintenance',
             'management-landlords': 'Connected Landlords',
             staff: 'Staff',
@@ -18990,6 +19471,7 @@
             'admin-pricing': 'Pricing',
             'admin-tenants': 'Tenant Management',
             'admin-enquiries': 'Enquiries',
+            'admin-leads': 'Listing Leads',
             'admin-notes': 'Notes',
             'admin-team': 'Admin Staff',
             'admin-staff': 'IPM Management',
@@ -19109,3 +19591,4 @@
   </script>
 </body>
 </html>
+

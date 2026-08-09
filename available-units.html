@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Available Units | Mushavo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at 12% 10%, rgba(20, 184, 166, 0.20), transparent 28rem),
+        radial-gradient(circle at 90% 18%, rgba(103, 232, 249, 0.22), transparent 26rem),
+        linear-gradient(135deg, #f3fffb 0%, #eefbf7 52%, #e9fbff 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden text-slate-900 antialiased">
+  <header class="border-b border-white/60 bg-white/45 backdrop-blur-xl">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <a href="index.html" class="flex items-center gap-3">
+        <img class="h-20 w-auto sm:h-24" src="mushavo-logo.png" alt="Mushavo logo">
+      </a>
+      <nav class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-700">
+        <a class="rounded-xl px-4 py-2 hover:bg-white/70" href="about.html">About</a>
+        <a class="rounded-xl px-4 py-2 hover:bg-white/70" href="pricing.html">Pricing</a>
+        <a class="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700" href="available-units.html">Available Units</a>
+        <a class="rounded-xl px-4 py-2 hover:bg-white/70" href="contact.html">Contact</a>
+        <a class="rounded-xl border border-emerald-200 bg-white/70 px-4 py-2 text-emerald-700 shadow-sm" href="client.html">Client Area</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <section class="rounded-[2rem] border border-white/70 bg-white/55 p-6 shadow-2xl shadow-emerald-950/10 backdrop-blur-xl sm:p-8">
+      <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.35em] text-emerald-700">Available Units</p>
+          <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-950 sm:text-5xl">Find homes and units ready for enquiry.</h1>
+          <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">Browse published Mushavo listings, request a viewing, and send an enquiry. Exact addresses are kept private until the owner or manager follows up.</p>
+        </div>
+        <form id="filters" class="grid gap-3 rounded-3xl border border-white/70 bg-white/60 p-4 shadow-xl shadow-emerald-950/5 backdrop-blur-xl sm:grid-cols-2">
+          <label class="text-sm font-semibold text-slate-700">Country
+            <select id="countryFilter" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white/80 px-3 text-slate-900 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100">
+              <option value="">All countries</option>
+            </select>
+          </label>
+          <label class="text-sm font-semibold text-slate-700">City or area
+            <input id="areaFilter" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white/80 px-3 text-slate-900 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" placeholder="Harare, Nilai...">
+          </label>
+          <label class="text-sm font-semibold text-slate-700">Min rent
+            <input id="minRentFilter" type="number" min="0" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white/80 px-3 text-slate-900 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" placeholder="0">
+          </label>
+          <label class="text-sm font-semibold text-slate-700">Max rent
+            <input id="maxRentFilter" type="number" min="0" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white/80 px-3 text-slate-900 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" placeholder="Any">
+          </label>
+          <label class="text-sm font-semibold text-slate-700">Bedrooms
+            <input id="bedroomsFilter" type="number" min="0" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white/80 px-3 text-slate-900 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" placeholder="Any">
+          </label>
+          <label class="text-sm font-semibold text-slate-700">Availability
+            <select id="availabilityFilter" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white/80 px-3 text-slate-900 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100">
+              <option value="">Any</option>
+              <option value="available">Available now</option>
+              <option value="soon_available">Available soon</option>
+            </select>
+          </label>
+          <button class="h-12 rounded-xl bg-emerald-600 px-5 font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-700 sm:col-span-2" type="submit">Search Listings</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="mt-8">
+      <div id="status" class="hidden rounded-2xl border border-white/70 bg-white/70 p-4 text-sm font-semibold shadow-lg backdrop-blur-xl"></div>
+      <div id="listings" class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3"></div>
+    </section>
+  </main>
+
+  <div id="leadModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+    <form id="leadForm" class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/70 bg-white/90 p-5 shadow-2xl backdrop-blur-xl sm:p-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-black">Send Enquiry</h2>
+          <p id="leadListingTitle" class="mt-1 text-sm text-slate-600"></p>
+        </div>
+        <button class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-600" type="button" id="closeLeadModal">Close</button>
+      </div>
+      <div class="mt-5 grid gap-4 sm:grid-cols-2">
+        <label class="text-sm font-semibold text-slate-700">Full name
+          <input id="leadName" required class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100">
+        </label>
+        <label class="text-sm font-semibold text-slate-700">Email
+          <input id="leadEmail" type="email" required class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100">
+        </label>
+        <label class="text-sm font-semibold text-slate-700">Phone
+          <input id="leadPhone" required class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100">
+        </label>
+        <label class="text-sm font-semibold text-slate-700">Preferred viewing time
+          <input id="leadViewing" type="datetime-local" class="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100">
+        </label>
+        <label class="text-sm font-semibold text-slate-700 sm:col-span-2">Message
+          <textarea id="leadMessage" rows="4" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 outline-none focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" placeholder="Tell us what you want to know or when you would like to view."></textarea>
+        </label>
+      </div>
+      <button id="leadSubmitButton" class="mt-5 h-12 w-full rounded-xl bg-emerald-600 px-5 font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-700" type="submit">Submit Enquiry</button>
+      <p id="leadMessageStatus" class="mt-4 hidden rounded-2xl p-4 text-sm font-semibold"></p>
+    </form>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://rmbvgtaadkvbsasbvdmb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtYnZndGFhZGt2YnNhc2J2ZG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NTQ1NjIsImV4cCI6MjA5ODIzMDU2Mn0.kMhXDI85TVAsw_Mb-PO5iaSHipG3vLFmM7DF3TUnf00';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const state = { listings: [], selectedListing: null };
+
+    const el = (id) => document.getElementById(id);
+    const money = (amount, currency) => amount == null ? 'Rent on request' : `${currency || '$'}${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const text = (value, fallback = '-') => value || fallback;
+    const date = (value) => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+
+    function showStatus(message, tone = 'info') {
+      const box = el('status');
+      box.className = `mt-5 rounded-2xl border p-4 text-sm font-semibold shadow-lg backdrop-blur-xl ${tone === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`;
+      box.textContent = message;
+      box.classList.remove('hidden');
+    }
+
+    function renderCountryOptions() {
+      const select = el('countryFilter');
+      const previous = select.value;
+      const countries = new Map();
+      state.listings.forEach((listing) => {
+        if (listing.country_id && listing.country_name) countries.set(listing.country_id, listing.country_name);
+      });
+      select.innerHTML = '<option value="">All countries</option>' + [...countries.entries()]
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([id, name]) => `<option value="${id}">${name}</option>`)
+        .join('');
+      select.value = previous;
+    }
+
+    function listingCard(listing) {
+      const photo = Array.isArray(listing.photo_urls) && listing.photo_urls.length ? listing.photo_urls[0] : '';
+      const availability = listing.availability_status === 'soon_available' ? 'Available soon' : 'Available now';
+      return `
+        <article class="overflow-hidden rounded-3xl border border-white/70 bg-white/70 shadow-2xl shadow-emerald-950/10 backdrop-blur-xl">
+          ${photo ? `<img class="h-56 w-full object-cover" src="${photo}" alt="${text(listing.title, 'Available unit')}">` : `<div class="flex h-56 items-center justify-center bg-gradient-to-br from-emerald-100 to-cyan-100 text-sm font-bold text-emerald-700">Mushavo Listing</div>`}
+          <div class="p-5">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">${availability}</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">${text(listing.country_name)}</span>
+            </div>
+            <h2 class="mt-4 text-xl font-black text-slate-950">${text(listing.title, listing.property_name || 'Available unit')}</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600">${text(listing.summary, `${text(listing.bedrooms, 0)} bedrooms, ${text(listing.bathrooms, 0)} bathrooms`)}</p>
+            <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <div class="rounded-2xl bg-white/75 p-3"><dt class="text-slate-500">Area</dt><dd class="mt-1 font-bold">${text(listing.public_area || listing.city)}</dd></div>
+              <div class="rounded-2xl bg-white/75 p-3"><dt class="text-slate-500">Rent</dt><dd class="mt-1 font-bold text-emerald-700">${listing.show_rent === false ? 'On request' : money(listing.monthly_rent, listing.currency_symbol)}</dd></div>
+              <div class="rounded-2xl bg-white/75 p-3"><dt class="text-slate-500">Beds</dt><dd class="mt-1 font-bold">${text(listing.bedrooms, 0)}</dd></div>
+              <div class="rounded-2xl bg-white/75 p-3"><dt class="text-slate-500">Available</dt><dd class="mt-1 font-bold">${date(listing.available_from)}</dd></div>
+            </dl>
+            <button class="mt-5 h-12 w-full rounded-xl bg-emerald-600 px-5 font-bold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-700" type="button" data-lead="${listing.id}">Enquire / Request Viewing</button>
+          </div>
+        </article>`;
+    }
+
+    async function loadListings() {
+      el('listings').innerHTML = '<div class="rounded-3xl border border-white/70 bg-white/70 p-6 text-slate-600 shadow-xl backdrop-blur-xl md:col-span-2 xl:col-span-3">Loading available units...</div>';
+      el('status').classList.add('hidden');
+      const params = {
+        p_country_id: el('countryFilter').value || null,
+        p_area: el('areaFilter').value.trim() || null,
+        p_min_rent: el('minRentFilter').value ? Number(el('minRentFilter').value) : null,
+        p_max_rent: el('maxRentFilter').value ? Number(el('maxRentFilter').value) : null,
+        p_bedrooms: el('bedroomsFilter').value ? Number(el('bedroomsFilter').value) : null,
+        p_availability_status: el('availabilityFilter').value || null
+      };
+      const { data, error } = await supabaseClient.rpc('get_public_unit_listings', params);
+      if (error) {
+        el('listings').innerHTML = '';
+        showStatus('Available units could not be loaded. Please try again.', 'error');
+        return;
+      }
+      state.listings = data || [];
+      renderCountryOptions();
+      el('listings').innerHTML = state.listings.length
+        ? state.listings.map(listingCard).join('')
+        : '<div class="rounded-3xl border border-white/70 bg-white/70 p-6 text-slate-600 shadow-xl backdrop-blur-xl md:col-span-2 xl:col-span-3">No public listings match your filters yet.</div>';
+    }
+
+    function openLeadModal(id) {
+      state.selectedListing = state.listings.find((listing) => listing.id === id);
+      if (!state.selectedListing) return;
+      el('leadListingTitle').textContent = state.selectedListing.title || state.selectedListing.property_name || 'Available unit';
+      el('leadMessageStatus').classList.add('hidden');
+      el('leadForm').reset();
+      el('leadModal').classList.remove('hidden');
+      el('leadModal').classList.add('flex');
+    }
+
+    function closeLeadModal() {
+      el('leadModal').classList.add('hidden');
+      el('leadModal').classList.remove('flex');
+      state.selectedListing = null;
+    }
+
+    async function submitLead(event) {
+      event.preventDefault();
+      if (!state.selectedListing) return;
+      const button = el('leadSubmitButton');
+      const messageBox = el('leadMessageStatus');
+      button.disabled = true;
+      button.textContent = 'Submitting...';
+      messageBox.className = 'mt-4 hidden rounded-2xl p-4 text-sm font-semibold';
+      const preferred = el('leadViewing').value ? new Date(el('leadViewing').value).toISOString() : null;
+      const { error } = await supabaseClient.rpc('submit_listing_lead', {
+        p_listing_id: state.selectedListing.id,
+        p_full_name: el('leadName').value.trim(),
+        p_email: el('leadEmail').value.trim(),
+        p_phone: el('leadPhone').value.trim(),
+        p_message: el('leadMessage').value.trim(),
+        p_requested_for: preferred
+      });
+      button.disabled = false;
+      button.textContent = 'Submit Enquiry';
+      if (error) {
+        messageBox.className = 'mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700';
+        messageBox.textContent = 'Enquiry could not be submitted. Please check your details and try again.';
+        return;
+      }
+      messageBox.className = 'mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700';
+      messageBox.textContent = 'Enquiry submitted. The Mushavo team will review it.';
+      event.target.reset();
+    }
+
+    el('filters').addEventListener('submit', (event) => {
+      event.preventDefault();
+      loadListings();
+    });
+    el('listings').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-lead]');
+      if (button) openLeadModal(button.dataset.lead);
+    });
+    el('closeLeadModal').addEventListener('click', closeLeadModal);
+    el('leadModal').addEventListener('click', (event) => {
+      if (event.target.id === 'leadModal') closeLeadModal();
+    });
+    el('leadForm').addEventListener('submit', submitLead);
+    loadListings();
+  </script>
+</body>
+</html>
