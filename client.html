@@ -590,6 +590,7 @@
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-enquiries' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-enquiries')">Enquiries</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-leads' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-leads')">Leads</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-notes' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-notes')">Notes</button>
+              <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-audit' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-audit')">Audit</button>
               <button x-show="profile?.role === 'super_admin'" class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-team' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-team')">Staff</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-staff' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-staff')">IPM</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-management' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-management')">PMC</button>
@@ -1761,6 +1762,77 @@
                       </td>
                     </tr>
                   </template>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section x-show="currentPage === 'admin-audit'" id="super-admin-audit" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[1800px]">
+          <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 class="text-2xl font-bold text-slate-900">Audit Log</h1>
+              <p class="mt-1 text-sm text-slate-600">Review create, edit, delete, archive, approval, finance, and staff actions.</p>
+            </div>
+            <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="loadAuditLogs" :disabled="admin.audit.loading">Refresh</button>
+          </div>
+
+          <template x-if="admin.audit.error">
+            <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" x-text="admin.audit.error"></div>
+          </template>
+
+          <section class="rounded-2xl border border-white/70 bg-white/75 shadow-soft backdrop-blur-xl">
+            <div class="grid gap-4 border-b border-slate-200 p-4 md:grid-cols-2">
+              <label class="block text-sm font-medium text-slate-700">
+                Search
+                <input class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" x-model="admin.audit.search" type="search" placeholder="Actor, action, table, record">
+              </label>
+              <label class="block text-sm font-medium text-slate-700">
+                Action
+                <select class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" x-model="admin.audit.action">
+                  <option value="all">All actions</option>
+                  <option value="insert">Created</option>
+                  <option value="update">Edited</option>
+                  <option value="archive">Archived</option>
+                  <option value="delete">Deleted</option>
+                  <option value="approve">Approved</option>
+                  <option value="view_financial_record">Viewed financial record</option>
+                  <option value="export">Exported</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-[980px] w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Date</th>
+                    <th class="px-4 py-3">Actor</th>
+                    <th class="px-4 py-3">Role</th>
+                    <th class="px-4 py-3">Action</th>
+                    <th class="px-4 py-3">Table</th>
+                    <th class="px-4 py-3">Record</th>
+                    <th class="px-4 py-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <template x-for="row in auditRows()" :key="row.id">
+                    <tr>
+                      <td class="px-4 py-3 text-slate-600" x-text="formatDateTime(row.created_at)"></td>
+                      <td class="px-4 py-3 font-semibold text-slate-900" x-text="auditActorName(row)"></td>
+                      <td class="px-4 py-3 text-slate-600" x-text="roleLabel(row.actor_role)"></td>
+                      <td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700" x-text="auditActionLabel(row.action)"></span></td>
+                      <td class="px-4 py-3 text-slate-600" x-text="row.target_table"></td>
+                      <td class="px-4 py-3 font-mono text-xs text-slate-500" x-text="row.target_id || '-'"></td>
+                      <td class="max-w-md px-4 py-3 text-xs text-slate-500"><span class="block max-h-10 overflow-hidden break-words" x-text="formatAuditDetails(row)"></span></td>
+                    </tr>
+                  </template>
+                  <tr x-show="!admin.audit.loading && auditRows().length === 0">
+                    <td class="px-4 py-10 text-center text-slate-500" colspan="7">No audit events found.</td>
+                  </tr>
+                  <tr x-show="admin.audit.loading">
+                    <td class="px-4 py-10 text-center text-slate-500" colspan="7">Loading audit events...</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -6043,6 +6115,73 @@
     const COMPANY_TAGLINE = 'Your property, handled simply.';
     const SUPPORT_EMAIL = 'dhruvp246@gmail.com';
 
+    const PERMISSION_MATRIX = {
+      can_view_properties: { form: 'canViewProperties', parents: [] },
+      can_add_properties: { form: 'canAddProperties', parents: ['can_view_properties'] },
+      can_edit_properties: { form: 'canEditProperties', parents: ['can_view_properties'] },
+      can_archive_properties: { form: 'canArchiveProperties', parents: ['can_view_properties'] },
+      can_view_units: { form: 'canViewUnits', parents: ['can_view_properties'] },
+      can_add_units: { form: 'canAddUnits', parents: ['can_view_properties', 'can_view_units'] },
+      can_edit_units: { form: 'canEditUnits', parents: ['can_view_properties', 'can_view_units'] },
+      can_archive_units: { form: 'canArchiveUnits', parents: ['can_view_properties', 'can_view_units'] },
+      can_mark_units_vacant: { form: 'canMarkUnitsVacant', parents: ['can_view_properties', 'can_view_units'] },
+      can_view_tenants: { form: 'canViewTenants', parents: [] },
+      can_add_tenants: { form: 'canAddTenants', parents: ['can_view_tenants'] },
+      can_edit_tenants: { form: 'canEditTenants', parents: ['can_view_tenants'] },
+      can_archive_tenants: { form: 'canArchiveTenants', parents: ['can_view_tenants'] },
+      can_view_leases: { form: 'canViewLeases', parents: [] },
+      can_create_leases: { form: 'canCreateLeases', parents: ['can_view_leases'] },
+      can_edit_leases: { form: 'canEditLeases', parents: ['can_view_leases'] },
+      can_terminate_leases: { form: 'canTerminateLeases', parents: ['can_view_leases'] },
+      can_view_lease_documents: { form: 'canViewLeaseDocuments', parents: ['can_view_leases'] },
+      can_upload_lease_documents: { form: 'canUploadLeaseDocuments', parents: ['can_view_leases'] },
+      can_manage_maintenance: { form: 'canManageMaintenance', parents: [] },
+      can_create_maintenance: { form: 'canCreateMaintenance', parents: ['can_manage_maintenance'] },
+      can_assign_maintenance: { form: 'canAssignMaintenance', parents: ['can_manage_maintenance'] },
+      can_add_resolution_notes: { form: 'canAddResolutionNotes', parents: ['can_manage_maintenance'] },
+      can_view_payments: { form: 'canViewPayments', parents: [] },
+      can_log_payments: { form: 'canLogPayments', parents: ['can_view_payments'] },
+      can_reject_payments: { form: 'canRejectPayments', parents: ['can_view_payments'] },
+      can_view_payment_proofs: { form: 'canViewPaymentProofs', parents: ['can_view_payments'] },
+      can_verify_payments: { form: 'canVerifyPayments', parents: ['can_view_payments'] },
+      can_manage_leases: { form: 'canManageLeases', parents: ['can_view_leases'] },
+      can_manage_staff: { form: 'canManageStaff', parents: [] },
+      can_publish_listings: { form: 'canPublishListings', parents: ['can_view_properties', 'can_view_units'] },
+      can_manage_leads: { form: 'canManageLeads', parents: ['can_view_properties', 'can_view_units'] },
+      can_schedule_viewings: { form: 'canScheduleViewings', parents: ['can_manage_leads'] },
+      can_view_finance: { form: 'canViewFinance', parents: ['can_view_payments'] }
+    };
+    const PERMISSION_KEYS = Object.keys(PERMISSION_MATRIX);
+    const PERMISSION_FORM_DEFAULTS = Object.fromEntries(PERMISSION_KEYS.map((key) => [PERMISSION_MATRIX[key].form, key === 'can_view_properties']));
+
+    function normalizePermissionPayload(raw = {}) {
+      const payload = {};
+      PERMISSION_KEYS.forEach((key) => { payload[key] = Boolean(raw[key]); });
+      let changed = true;
+      while (changed) {
+        changed = false;
+        PERMISSION_KEYS.forEach((key) => {
+          if (!payload[key]) return;
+          (PERMISSION_MATRIX[key].parents || []).forEach((parent) => {
+            if (!payload[parent]) {
+              payload[parent] = true;
+              changed = true;
+            }
+          });
+        });
+      }
+      return payload;
+    }
+
+    function normalizePermissionFormState(form = {}) {
+      const raw = {};
+      PERMISSION_KEYS.forEach((key) => { raw[key] = Boolean(form[PERMISSION_MATRIX[key].form]); });
+      const payload = normalizePermissionPayload(raw);
+      const normalized = {};
+      PERMISSION_KEYS.forEach((key) => { normalized[PERMISSION_MATRIX[key].form] = payload[key]; });
+      return normalized;
+    }
+
     function mushavoApp() {
       return {
         booting: true,
@@ -6220,6 +6359,13 @@
           staffRequests: [],
           noteAssignees: [],
           notes: [],
+          audit: {
+            loading: false,
+            error: '',
+            items: [],
+            search: '',
+            action: 'all'
+          },
           noteFilters: {
             search: '',
             status: '',
@@ -7296,7 +7442,7 @@
           if (!page) return false;
 
           if (this.currentShell === 'super_admin') {
-            const pages = ['admin-dashboard', 'landlord-management', 'admin-finance', 'admin-pricing', 'admin-tenants', 'admin-enquiries', 'admin-notes', 'admin-staff', 'admin-management'];
+            const pages = ['admin-dashboard', 'landlord-management', 'admin-finance', 'admin-pricing', 'admin-tenants', 'admin-enquiries', 'admin-leads', 'admin-notes', 'admin-audit', 'admin-staff', 'admin-management'];
             if (this.profile?.role === 'super_admin') pages.push('admin-team');
             return pages.includes(page);
           }
@@ -7838,6 +7984,12 @@
             rows
           };
           this.admin.modal = 'payment-history';
+          this.recordAuditEvent('view_financial_record', 'platform_payments', null, config.payerType === 'landlord' ? config.id : null, row.country_id || this.adminStaffCountryId(row) || null, {
+            account_type: config.payerType,
+            account_id: config.id,
+            account_title: config.title,
+            records_viewed: rows.length
+          });
         },
 
         paymentHistoryTotal() {
@@ -11430,6 +11582,7 @@
             { page: 'admin-enquiries', label: 'Enquiries', icon: 'file', visible: true },
             { page: 'admin-leads', label: 'Leads', icon: 'users', visible: true },
             { page: 'admin-notes', label: 'Notes', icon: 'file', visible: true },
+            { page: 'admin-audit', label: 'Audit', icon: 'file', visible: true },
             { page: 'admin-team', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'super_admin' },
             { page: 'admin-staff', label: 'IPM', icon: 'account', visible: true },
             { page: 'admin-management', label: 'PMC', icon: 'building', visible: true }
@@ -11715,6 +11868,9 @@
 
         viewDashboardPayment(payment) {
           this.dashboard.selectedPayment = payment;
+          this.recordAuditEvent('view_financial_record', 'payments', payment?.id || null, payment?.landlord_id || null, null, {
+            source: 'dashboard_recent_payments'
+          });
         },
 
         viewDashboardLease(lease) {
@@ -14008,6 +14164,11 @@
           link.click();
           link.remove();
           URL.revokeObjectURL(url);
+          this.recordAuditEvent('export', partnerMode ? 'partner_payments' : 'payments', null, null, null, {
+            source: 'finance_csv',
+            mode: partnerMode ? 'partner_finance' : 'landlord_finance',
+            rows_exported: rows.length
+          });
         },
 
         paymentUnitLabel(row) {
@@ -14628,6 +14789,10 @@
             doc.setFontSize(11);
             doc.text('Thank you for your payment', 20, 280);
             doc.save(`${receiptNumber}.pdf`);
+            this.recordAuditEvent('export', 'payments', receiptPayment.id || payment?.id || null, lease.landlord_id || payment?.landlord_id || null, null, {
+              source: 'payment_receipt_pdf',
+              receipt_number: receiptNumber
+            });
           } catch (error) {
             const message = error.message || 'Receipt could not be generated.';
             this.payments.error = message;
@@ -14696,6 +14861,11 @@
             doc.setFontSize(11);
             doc.text('Thank you for your payment', 20, 280);
             doc.save(`${receiptNumber}.pdf`);
+            this.recordAuditEvent('export', 'platform_payments', payment?.id || null, payment?.landlord_id || null, payment?.country_id || null, {
+              source: 'platform_receipt_pdf',
+              receipt_number: receiptNumber,
+              payer_type: payment?.payer_type || 'landlord'
+            });
           } catch (error) {
             this.admin.error = error.message || 'Platform receipt could not be generated.';
           }
@@ -15235,129 +15405,39 @@
             phone: '',
             allProperties: true,
             propertyIds: [],
-            canViewProperties: true,
-            canAddProperties: false,
-            canEditProperties: false,
-            canArchiveProperties: false,
-            canViewUnits: false,
-            canAddUnits: false,
-            canEditUnits: false,
-            canArchiveUnits: false,
-            canMarkUnitsVacant: false,
-            canViewTenants: false,
-            canAddTenants: false,
-            canEditTenants: false,
-            canArchiveTenants: false,
-            canViewLeases: false,
-            canCreateLeases: false,
-            canEditLeases: false,
-            canTerminateLeases: false,
-            canViewLeaseDocuments: false,
-            canUploadLeaseDocuments: false,
-            canManageMaintenance: false,
-            canCreateMaintenance: false,
-            canAssignMaintenance: false,
-            canAddResolutionNotes: false,
-            canViewPayments: false,
-            canLogPayments: false,
-            canRejectPayments: false,
-            canViewPaymentProofs: false,
-            canVerifyPayments: false,
-            canManageLeases: false,
-            canManageStaff: false,
-            canPublishListings: false,
-            canManageLeads: false,
-            canScheduleViewings: false,
-            canViewFinance: false
+            ...PERMISSION_FORM_DEFAULTS
           };
         },
 
         staffFormPayload() {
-          const canViewProperties = Boolean(this.staff.form.canViewProperties);
-          const canViewUnits = canViewProperties && Boolean(this.staff.form.canViewUnits);
-          const canViewTenants = Boolean(this.staff.form.canViewTenants);
+          const rawPermissions = {};
+          PERMISSION_KEYS.forEach((key) => {
+            rawPermissions[key] = this.staff.form[PERMISSION_MATRIX[key].form];
+          });
+
           return {
             all_properties: Boolean(this.staff.form.allProperties),
             property_ids: this.staff.form.allProperties ? [] : this.staff.form.propertyIds,
-            can_view_properties: canViewProperties,
-            can_add_properties: canViewProperties && Boolean(this.staff.form.canAddProperties),
-            can_edit_properties: canViewProperties && Boolean(this.staff.form.canEditProperties),
-            can_archive_properties: canViewProperties && Boolean(this.staff.form.canArchiveProperties),
-            can_view_units: canViewUnits,
-            can_add_units: canViewUnits && Boolean(this.staff.form.canAddUnits),
-            can_edit_units: canViewUnits && Boolean(this.staff.form.canEditUnits),
-            can_archive_units: canViewUnits && Boolean(this.staff.form.canArchiveUnits),
-            can_mark_units_vacant: canViewUnits && Boolean(this.staff.form.canMarkUnitsVacant),
-            can_view_tenants: canViewTenants,
-            can_add_tenants: canViewTenants && Boolean(this.staff.form.canAddTenants),
-            can_edit_tenants: canViewTenants && Boolean(this.staff.form.canEditTenants),
-            can_archive_tenants: canViewTenants && Boolean(this.staff.form.canArchiveTenants),
-            can_view_leases: Boolean(this.staff.form.canViewLeases),
-            can_create_leases: Boolean(this.staff.form.canCreateLeases),
-            can_edit_leases: Boolean(this.staff.form.canEditLeases),
-            can_terminate_leases: Boolean(this.staff.form.canTerminateLeases),
-            can_view_lease_documents: Boolean(this.staff.form.canViewLeaseDocuments),
-            can_upload_lease_documents: Boolean(this.staff.form.canUploadLeaseDocuments),
-            can_manage_maintenance: Boolean(this.staff.form.canManageMaintenance),
-            can_create_maintenance: Boolean(this.staff.form.canCreateMaintenance),
-            can_assign_maintenance: Boolean(this.staff.form.canAssignMaintenance),
-            can_add_resolution_notes: Boolean(this.staff.form.canAddResolutionNotes),
-            can_view_payments: Boolean(this.staff.form.canViewPayments),
-            can_log_payments: Boolean(this.staff.form.canLogPayments),
-            can_reject_payments: Boolean(this.staff.form.canRejectPayments),
-            can_view_payment_proofs: Boolean(this.staff.form.canViewPaymentProofs),
-            can_verify_payments: Boolean(this.staff.form.canVerifyPayments),
-            can_manage_leases: Boolean(this.staff.form.canManageLeases),
-            can_manage_staff: Boolean(this.staff.form.canManageStaff),
-            can_publish_listings: Boolean(this.staff.form.canPublishListings),
-            can_manage_leads: Boolean(this.staff.form.canManageLeads),
-            can_schedule_viewings: Boolean(this.staff.form.canScheduleViewings),
-            can_view_finance: Boolean(this.staff.form.canViewFinance)
+            ...normalizePermissionPayload(rawPermissions)
           };
         },
 
         staffFormFromMember(member) {
-          return {
+          const form = {
             fullName: member.full_name || '',
             email: member.email || '',
             phone: member.phone || '',
             allProperties: Boolean(member.all_properties),
             propertyIds: member.property_ids || [],
-            canViewProperties: member.can_view_properties !== false,
-            canAddProperties: Boolean(member.can_add_properties),
-            canEditProperties: Boolean(member.can_edit_properties),
-            canArchiveProperties: Boolean(member.can_archive_properties),
-            canViewUnits: Boolean(member.can_view_units),
-            canAddUnits: Boolean(member.can_add_units),
-            canEditUnits: Boolean(member.can_edit_units),
-            canArchiveUnits: Boolean(member.can_archive_units),
-            canMarkUnitsVacant: Boolean(member.can_mark_units_vacant),
-            canViewTenants: Boolean(member.can_view_tenants),
-            canAddTenants: Boolean(member.can_add_tenants),
-            canEditTenants: Boolean(member.can_edit_tenants),
-            canArchiveTenants: Boolean(member.can_archive_tenants),
-            canViewLeases: Boolean(member.can_view_leases),
-            canCreateLeases: Boolean(member.can_create_leases),
-            canEditLeases: Boolean(member.can_edit_leases),
-            canTerminateLeases: Boolean(member.can_terminate_leases),
-            canViewLeaseDocuments: Boolean(member.can_view_lease_documents),
-            canUploadLeaseDocuments: Boolean(member.can_upload_lease_documents),
-            canManageMaintenance: Boolean(member.can_manage_maintenance),
-            canCreateMaintenance: Boolean(member.can_create_maintenance),
-            canAssignMaintenance: Boolean(member.can_assign_maintenance),
-            canAddResolutionNotes: Boolean(member.can_add_resolution_notes),
-            canViewPayments: Boolean(member.can_view_payments),
-            canLogPayments: Boolean(member.can_log_payments),
-            canRejectPayments: Boolean(member.can_reject_payments),
-            canViewPaymentProofs: Boolean(member.can_view_payment_proofs),
-            canVerifyPayments: Boolean(member.can_verify_payments),
-            canManageLeases: Boolean(member.can_manage_leases),
-            canManageStaff: Boolean(member.can_manage_staff),
-            canPublishListings: Boolean(member.can_publish_listings),
-            canManageLeads: Boolean(member.can_manage_leads),
-            canScheduleViewings: Boolean(member.can_schedule_viewings),
-            canViewFinance: Boolean(member.can_view_finance)
+            ...PERMISSION_FORM_DEFAULTS
           };
+
+          PERMISSION_KEYS.forEach((key) => {
+            form[PERMISSION_MATRIX[key].form] = key === 'can_view_properties' ? member[key] !== false : Boolean(member[key]);
+          });
+
+          Object.assign(form, normalizePermissionFormState(form));
+          return form;
         },
 
         assignmentScopesOverlap(candidate, existing) {
@@ -17608,6 +17688,9 @@
         },
 
         openPaymentProof(submission) {
+          this.recordAuditEvent('view_financial_record', 'payment_submissions', submission?.id || submission?.payment_submissions?.id || submission?.submission?.id || null, submission?.landlord_id || null, null, {
+            source: 'payment_proof'
+          });
           return this.openPrivateImage(
             PAYMENT_PROOF_BUCKET,
             this.paymentProofPath(submission),
@@ -18292,6 +18375,7 @@
             'admin-enquiries': ['enquiries', 'countries', 'admin_staff_country_assignments'],
               'admin-leads': ['unit_listings', 'listing_leads', 'viewing_requests', 'lead_followups', 'lead_activity', 'properties', 'units', 'profiles', 'countries', 'admin_staff_country_assignments'],
               'admin-notes': ['admin_notes', 'profiles'],
+              'admin-audit': ['audit_logs', 'profiles', 'countries', 'admin_staff_country_assignments'],
               'admin-team': ['profiles', 'admin_staff_country_assignments', 'countries'],
               'admin-staff': ['profiles', 'staff_permissions', 'staff_landlord_requests', 'platform_payments', 'countries'],
               'admin-management': ['management_companies', 'management_landlord_permissions', 'management_staff_permissions', 'profiles', 'platform_payments', 'countries']
@@ -19335,10 +19419,115 @@
           }
         },
 
+        async loadAuditLogs() {
+          if (!this.admin.audit) {
+            this.admin.audit = { loading: false, error: '', items: [], search: '', action: 'all' };
+          }
+
+          this.admin.audit.loading = true;
+          this.admin.audit.error = '';
+
+          const { data, error } = await supabaseClient
+            .from('audit_logs')
+            .select('id, created_at, actor_profile_id, actor_role, action, target_table, target_id, landlord_id, country_id, details, actor:profiles!audit_logs_actor_profile_id_fkey(id, full_name, email)')
+            .order('created_at', { ascending: false })
+            .limit(250);
+
+          if (error) {
+            this.admin.audit.error = this.friendlyDatabaseError(error, 'Audit log could not be loaded.');
+            this.admin.audit.loading = false;
+            return;
+          }
+
+          this.admin.audit.items = data || [];
+          this.admin.audit.loading = false;
+        },
+
+        async recordAuditEvent(action, targetTable, targetId = null, landlordId = null, countryId = null, details = {}) {
+          try {
+            await supabaseClient.rpc('record_audit_event', {
+              p_action: action,
+              p_target_table: targetTable,
+              p_target_id: targetId,
+              p_landlord_id: landlordId,
+              p_country_id: countryId,
+              p_details: details || {}
+            });
+          } catch (error) {
+            console.warn('Audit event was not recorded.', error);
+          }
+        },
+
+        auditRows() {
+          const search = String(this.admin.audit?.search || '').toLowerCase();
+          const action = this.admin.audit?.action || 'all';
+
+          return (this.admin.audit?.items || []).filter((row) => {
+            if (action !== 'all' && row.action !== action) return false;
+            if (!search) return true;
+
+            const haystack = [
+              row.actor?.full_name,
+              row.actor?.email,
+              row.actor_role,
+              row.action,
+              row.target_table,
+              row.target_id,
+              JSON.stringify(row.details || {})
+            ].filter(Boolean).join(' ').toLowerCase();
+
+            return haystack.includes(search);
+          });
+        },
+
+        auditActorName(row) {
+          return row?.actor?.full_name || row?.actor?.email || row?.actor_profile_id || 'System';
+        },
+
+        roleLabel(role) {
+          const labels = {
+            super_admin: 'Admin',
+            admin_staff: 'Admin Staff',
+            landlord: 'Landlord',
+            tenant: 'Tenant',
+            staff: 'Staff',
+            management_leader: 'PMC',
+            management_staff: 'PMC Staff'
+          };
+          return labels[role] || String(role || '-').replaceAll('_', ' ');
+        },
+
+        auditActionLabel(action) {
+          const labels = {
+            insert: 'Created',
+            update: 'Edited',
+            archive: 'Archived',
+            delete: 'Deleted',
+            approve: 'Approved',
+            view_financial_record: 'Viewed financial record',
+            export: 'Exported'
+          };
+          return labels[action] || String(action || 'event').replaceAll('_', ' ');
+        },
+
+        formatAuditDetails(row) {
+          const details = row?.details || {};
+          const oldRow = details.old || {};
+          const newRow = details.new || {};
+          const changed = Object.keys(newRow).filter((key) => JSON.stringify(newRow[key]) !== JSON.stringify(oldRow[key]));
+
+          if (changed.length) {
+            return `Changed: ${changed.slice(0, 8).join(', ')}${changed.length > 8 ? '...' : ''}`;
+          }
+
+          return JSON.stringify(details).slice(0, 220);
+        },
+
         async refreshCurrentPage() {
           if (this.currentShell === 'super_admin') {
             await this.loadSuperAdminData();
             if (this.currentPage === 'admin-leads') await this.loadLeadsPage();
+            if (this.currentPage === 'admin-audit') await this.loadAuditLogs();
             if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
             return;
           }
@@ -19398,10 +19587,11 @@
             await this.loadLeadsPage();
           }
 
-          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-leads' || page === 'admin-notes' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
+          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-leads' || page === 'admin-notes' || page === 'admin-audit' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
             if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
             await this.loadSuperAdminData();
             if (page === 'admin-leads') await this.loadLeadsPage();
+            if (page === 'admin-audit') await this.loadAuditLogs();
           }
 
           if (page === 'maintenance' && this.currentShell === 'app') {
@@ -19473,6 +19663,7 @@
             'admin-enquiries': 'Enquiries',
             'admin-leads': 'Listing Leads',
             'admin-notes': 'Notes',
+            'admin-audit': 'Audit Log',
             'admin-team': 'Admin Staff',
             'admin-staff': 'IPM Management',
             'admin-management': 'Property Management Companies',
