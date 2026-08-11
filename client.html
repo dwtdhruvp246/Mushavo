@@ -591,6 +591,7 @@
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-leads' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-leads')">Leads</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-notes' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-notes')">Notes</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-audit' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-audit')">Audit</button>
+              <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-automation' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-automation')">Automation</button>
               <button x-show="profile?.role === 'super_admin'" class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-team' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-team')">Staff</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-staff' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-staff')">IPM</button>
               <button class="rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === 'admin-management' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate('admin-management')">PMC</button>
@@ -1832,6 +1833,170 @@
                   </tr>
                   <tr x-show="admin.audit.loading">
                     <td class="px-4 py-10 text-center text-slate-500" colspan="7">Loading audit events...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section x-show="currentPage === 'admin-automation'" id="super-admin-automation" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[1800px]">
+          <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 class="text-2xl font-bold text-slate-900">Automation</h1>
+              <p class="mt-1 text-sm text-slate-600">Control reminders, alerts, escalation checks, and notification templates.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="loadAutomationData">Refresh</button>
+              <button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60" type="button" @click="runAutomationChecks" :disabled="admin.automationRunning">
+                <span x-show="!admin.automationRunning">Run Checks</span>
+                <span x-show="admin.automationRunning">Running...</span>
+              </button>
+            </div>
+          </div>
+
+          <template x-if="admin.error">
+            <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" x-text="admin.error"></div>
+          </template>
+          <template x-if="admin.message">
+            <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700" x-text="admin.message"></div>
+          </template>
+
+          <div class="mb-6 grid gap-4 sm:grid-cols-3">
+            <article class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
+              <p class="text-sm font-semibold text-slate-500">Active Rules</p>
+              <p class="mt-3 text-3xl font-bold text-emerald-700" x-text="admin.automationRules.filter(rule => rule.is_enabled).length"></p>
+            </article>
+            <article class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
+              <p class="text-sm font-semibold text-slate-500">Templates</p>
+              <p class="mt-3 text-3xl font-bold text-slate-900" x-text="admin.automationTemplates.length"></p>
+            </article>
+            <article class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
+              <p class="text-sm font-semibold text-slate-500">Last Run</p>
+              <p class="mt-3 text-lg font-bold text-slate-900" x-text="admin.automationRuns[0] ? formatDateTime(admin.automationRuns[0].run_at) : '-'"></p>
+            </article>
+          </div>
+
+          <section class="mb-6 overflow-hidden rounded-2xl border border-white/70 bg-white/75 shadow-soft backdrop-blur-xl">
+            <div class="border-b border-slate-200 p-4">
+              <h2 class="text-lg font-bold text-slate-900">Automation Rules</h2>
+              <p class="mt-1 text-sm text-slate-600">Admin staff can view and run checks. Only the main admin can edit rule settings.</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-[980px] w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Rule</th>
+                    <th class="px-4 py-3">Enabled</th>
+                    <th class="px-4 py-3">Timing</th>
+                    <th class="px-4 py-3">Audience</th>
+                    <th class="px-4 py-3">Updated</th>
+                    <th class="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <template x-for="rule in admin.automationRules" :key="rule.id">
+                    <tr>
+                      <td class="px-4 py-3">
+                        <p class="font-semibold text-slate-900" x-text="rule.rule_name"></p>
+                        <p class="mt-1 text-xs text-slate-500" x-text="automationRuleDescription(rule)"></p>
+                      </td>
+                      <td class="px-4 py-3">
+                        <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" type="checkbox" x-model="rule.is_enabled" :disabled="profile?.role !== 'super_admin'">
+                          <span x-text="rule.is_enabled ? 'On' : 'Off'"></span>
+                        </label>
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="grid gap-2 sm:grid-cols-3">
+                          <label class="text-xs font-semibold text-slate-500">Before
+                            <input class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 disabled:opacity-60" type="number" min="0" x-model.number="rule.days_before" :disabled="profile?.role !== 'super_admin'">
+                          </label>
+                          <label class="text-xs font-semibold text-slate-500">After
+                            <input class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 disabled:opacity-60" type="number" min="0" x-model.number="rule.days_after" :disabled="profile?.role !== 'super_admin'">
+                          </label>
+                          <label class="text-xs font-semibold text-slate-500">Threshold
+                            <input class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 disabled:opacity-60" type="number" min="0" x-model.number="rule.threshold_days" :disabled="profile?.role !== 'super_admin'">
+                          </label>
+                        </div>
+                        <p class="mt-2 text-xs text-slate-500" x-text="automationTimingLabel(rule)"></p>
+                      </td>
+                      <td class="px-4 py-3 text-slate-600" x-text="(rule.audience_roles || []).map(role => roleLabel(role)).join(', ') || '-'"></td>
+                      <td class="px-4 py-3 text-slate-500" x-text="formatDateTime(rule.updated_at)"></td>
+                      <td class="px-4 py-3">
+                        <button x-show="profile?.role === 'super_admin'" class="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-60" type="button" @click="saveAutomationRule(rule)" :disabled="admin.automationSavingId === rule.id">
+                          <span x-show="admin.automationSavingId !== rule.id">Save</span>
+                          <span x-show="admin.automationSavingId === rule.id">Saving...</span>
+                        </button>
+                        <span x-show="profile?.role !== 'super_admin'" class="text-xs font-semibold text-slate-400">View only</span>
+                      </td>
+                    </tr>
+                  </template>
+                  <tr x-show="admin.automationRules.length === 0">
+                    <td class="px-4 py-10 text-center text-slate-500" colspan="6">No automation rules found. Run the latest SQL file first.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="mb-6 rounded-2xl border border-white/70 bg-white/75 p-4 shadow-soft backdrop-blur-xl">
+            <div class="mb-4">
+              <h2 class="text-lg font-bold text-slate-900">Message Templates</h2>
+              <p class="mt-1 text-sm text-slate-600">Use placeholders like {tenant}, {amount}, {purpose}, {date}, {days}, and {reference}.</p>
+            </div>
+            <div class="grid gap-4 lg:grid-cols-2">
+              <template x-for="template in admin.automationTemplates" :key="template.id">
+                <article class="rounded-xl border border-slate-200 bg-white/80 p-4">
+                  <div class="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500" x-text="template.template_key.replaceAll('_', ' ')"></p>
+                      <input class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 disabled:opacity-60" type="text" x-model="template.title" :disabled="profile?.role !== 'super_admin'">
+                    </div>
+                    <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      <input class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" type="checkbox" x-model="template.is_enabled" :disabled="profile?.role !== 'super_admin'">
+                      Enabled
+                    </label>
+                  </div>
+                  <textarea class="min-h-[7rem] w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 disabled:opacity-60" x-model="template.message" :disabled="profile?.role !== 'super_admin'"></textarea>
+                  <div class="mt-3 flex justify-end">
+                    <button x-show="profile?.role === 'super_admin'" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" type="button" @click="saveAutomationTemplate(template)" :disabled="admin.automationSavingId === template.id">
+                      <span x-show="admin.automationSavingId !== template.id">Save Template</span>
+                      <span x-show="admin.automationSavingId === template.id">Saving...</span>
+                    </button>
+                  </div>
+                </article>
+              </template>
+            </div>
+          </section>
+
+          <section class="overflow-hidden rounded-2xl border border-white/70 bg-white/75 shadow-soft backdrop-blur-xl">
+            <div class="border-b border-slate-200 p-4">
+              <h2 class="text-lg font-bold text-slate-900">Recent Runs</h2>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-[760px] w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3">Date</th>
+                    <th class="px-4 py-3">Rule</th>
+                    <th class="px-4 py-3">Created</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Error</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <template x-for="run in admin.automationRuns" :key="run.id">
+                    <tr>
+                      <td class="px-4 py-3 text-slate-600" x-text="formatDateTime(run.run_at)"></td>
+                      <td class="px-4 py-3 font-semibold text-slate-900" x-text="run.rule_key.replaceAll('_', ' ')"></td>
+                      <td class="px-4 py-3 text-slate-600" x-text="run.notifications_created"></td>
+                      <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="automationRunStatusClass(run.status)" x-text="titleCase(run.status || 'complete')"></span></td>
+                      <td class="px-4 py-3 text-xs text-red-600" x-text="run.error_message || '-'"></td>
+                    </tr>
+                  </template>
+                  <tr x-show="admin.automationRuns.length === 0">
+                    <td class="px-4 py-10 text-center text-slate-500" colspan="5">No automation checks have run yet.</td>
                   </tr>
                 </tbody>
               </table>
@@ -6366,6 +6531,11 @@
             search: '',
             action: 'all'
           },
+          automationRules: [],
+          automationTemplates: [],
+          automationRuns: [],
+          automationRunning: false,
+          automationSavingId: null,
           noteFilters: {
             search: '',
             status: '',
@@ -7442,7 +7612,7 @@
           if (!page) return false;
 
           if (this.currentShell === 'super_admin') {
-            const pages = ['admin-dashboard', 'landlord-management', 'admin-finance', 'admin-pricing', 'admin-tenants', 'admin-enquiries', 'admin-leads', 'admin-notes', 'admin-audit', 'admin-staff', 'admin-management'];
+            const pages = ['admin-dashboard', 'landlord-management', 'admin-finance', 'admin-pricing', 'admin-tenants', 'admin-enquiries', 'admin-leads', 'admin-notes', 'admin-audit', 'admin-automation', 'admin-staff', 'admin-management'];
             if (this.profile?.role === 'super_admin') pages.push('admin-team');
             return pages.includes(page);
           }
@@ -11583,6 +11753,7 @@
             { page: 'admin-leads', label: 'Leads', icon: 'users', visible: true },
             { page: 'admin-notes', label: 'Notes', icon: 'file', visible: true },
             { page: 'admin-audit', label: 'Audit', icon: 'file', visible: true },
+            { page: 'admin-automation', label: 'Automation', icon: 'settings', visible: true },
             { page: 'admin-team', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'super_admin' },
             { page: 'admin-staff', label: 'IPM', icon: 'account', visible: true },
             { page: 'admin-management', label: 'PMC', icon: 'building', visible: true }
@@ -18256,6 +18427,13 @@
             maintenance_new: 'Maintenance Request',
             maintenance_updated: 'Maintenance Updated',
             rent_due: 'Rent Due',
+            rent_due_reminder: 'Rent Due Reminder',
+            overdue_rent_alert: 'Overdue Rent Alert',
+            lease_expiry_reminder: 'Lease Expiry Reminder',
+            subscription_expiry_reminder: 'Subscription Expiry Reminder',
+            maintenance_escalation: 'Maintenance Escalation',
+            payment_received: 'Payment Received',
+            automation_digest: 'Automation Digest',
             tenant_link_request: 'Tenant Link Request',
             tenant_reference_request: 'Reference Consent Request',
             staff_landlord_request: 'IPM Access Request',
@@ -18345,6 +18523,10 @@
             'invite_tokens',
             'admin_notes',
             'enquiries',
+            'automation_templates',
+            'automation_rules',
+            'automation_runs',
+            'notification_preferences',
             'admin_staff_country_assignments'
           ];
         },
@@ -18376,6 +18558,7 @@
               'admin-leads': ['unit_listings', 'listing_leads', 'viewing_requests', 'lead_followups', 'lead_activity', 'properties', 'units', 'profiles', 'countries', 'admin_staff_country_assignments'],
               'admin-notes': ['admin_notes', 'profiles'],
               'admin-audit': ['audit_logs', 'profiles', 'countries', 'admin_staff_country_assignments'],
+              'admin-automation': ['automation_templates', 'automation_rules', 'automation_runs', 'notification_preferences', 'notifications', 'payments', 'leases', 'maintenance_requests', 'landlord_subscriptions'],
               'admin-team': ['profiles', 'admin_staff_country_assignments', 'countries'],
               'admin-staff': ['profiles', 'staff_permissions', 'staff_landlord_requests', 'platform_payments', 'countries'],
               'admin-management': ['management_companies', 'management_landlord_permissions', 'management_staff_permissions', 'profiles', 'platform_payments', 'countries']
@@ -19419,6 +19602,139 @@
           }
         },
 
+        async loadAutomationData() {
+          if (!['super_admin', 'admin_staff'].includes(this.profile?.role)) return;
+          this.admin.error = '';
+          const [rulesResult, templatesResult, runsResult] = await Promise.all([
+            supabaseClient.from('automation_rules').select('*').order('rule_key', { ascending: true }),
+            supabaseClient.from('automation_templates').select('*').order('template_key', { ascending: true }),
+            supabaseClient.from('automation_runs').select('*').order('run_at', { ascending: false }).limit(30)
+          ]);
+
+          const error = rulesResult.error || templatesResult.error || runsResult.error;
+          if (error) {
+            this.admin.error = this.friendlyDatabaseError(error, 'Automation data could not be loaded.');
+            return;
+          }
+
+          this.admin.automationRules = rulesResult.data || [];
+          this.admin.automationTemplates = templatesResult.data || [];
+          this.admin.automationRuns = runsResult.data || [];
+        },
+
+        automationTimingLabel(rule) {
+          if (!rule) return '-';
+          const parts = [];
+          if (Number(rule.days_before || 0) > 0) parts.push(`${rule.days_before} days before`);
+          if (Number(rule.days_after || 0) > 0) parts.push(`${rule.days_after} days after`);
+          if (Number(rule.threshold_days || 0) > 0) parts.push(`after ${rule.threshold_days} days`);
+          return parts.length ? parts.join(' / ') : 'Runs on matching records';
+        },
+
+        automationRunStatusClass(status) {
+          if (status === 'failed') return 'bg-red-100 text-red-700';
+          if (status === 'running') return 'bg-amber-100 text-amber-700';
+          return 'bg-emerald-100 text-emerald-700';
+        },
+
+        automationRuleDescription(rule) {
+          const descriptions = {
+            rent_due_reminder: 'Alerts tenants before rent is due.',
+            overdue_rent_alert: 'Alerts tenants and landlords when rent remains unpaid after the due date.',
+            lease_expiry_reminder: 'Warns tenants and landlords before a lease expires.',
+            subscription_expiry_reminder: 'Warns landlords, IPMs, PMCs, and staff before a subscription expires.',
+            maintenance_escalation: 'Flags open maintenance requests that have not moved forward.',
+            payment_received_notifications: 'Notifies tenant and landlord when a payment record is logged.'
+          };
+          return descriptions[rule?.rule_key] || this.titleCase(rule?.rule_key || 'automation rule');
+        },
+
+        async saveAutomationRule(rule) {
+          if (this.profile?.role !== 'super_admin') {
+            this.admin.error = 'Only the main admin can edit automation rules.';
+            return;
+          }
+
+          this.admin.automationSavingId = rule.id;
+          this.admin.error = '';
+          this.admin.message = '';
+          try {
+            const { error } = await supabaseClient
+              .from('automation_rules')
+              .update({
+                is_enabled: Boolean(rule.is_enabled),
+                days_before: Math.max(0, Number(rule.days_before) || 0),
+                days_after: Math.max(0, Number(rule.days_after) || 0),
+                threshold_days: Math.max(0, Number(rule.threshold_days) || 0),
+                updated_by: this.profile.id
+              })
+              .eq('id', rule.id);
+
+            if (error) throw error;
+            this.admin.message = 'Automation rule saved.';
+            await this.loadAutomationData();
+          } catch (error) {
+            this.admin.error = this.friendlyDatabaseError(error, 'Automation rule could not be saved.');
+          } finally {
+            this.admin.automationSavingId = null;
+          }
+        },
+
+        async saveAutomationTemplate(template) {
+          if (this.profile?.role !== 'super_admin') {
+            this.admin.error = 'Only the main admin can edit automation templates.';
+            return;
+          }
+
+          const title = String(template.title || '').trim();
+          const message = String(template.message || '').trim();
+          if (!title || !message) {
+            this.admin.error = 'Template title and message are required.';
+            return;
+          }
+
+          this.admin.automationSavingId = template.id;
+          this.admin.error = '';
+          this.admin.message = '';
+          try {
+            const { error } = await supabaseClient
+              .from('automation_templates')
+              .update({
+                title,
+                message,
+                is_enabled: Boolean(template.is_enabled),
+                updated_by: this.profile.id
+              })
+              .eq('id', template.id);
+
+            if (error) throw error;
+            this.admin.message = 'Automation template saved.';
+            await this.loadAutomationData();
+          } catch (error) {
+            this.admin.error = this.friendlyDatabaseError(error, 'Automation template could not be saved.');
+          } finally {
+            this.admin.automationSavingId = null;
+          }
+        },
+
+        async runAutomationChecks() {
+          if (!['super_admin', 'admin_staff'].includes(this.profile?.role)) return;
+          this.admin.automationRunning = true;
+          this.admin.error = '';
+          this.admin.message = '';
+          try {
+            const { data, error } = await supabaseClient.rpc('run_automation_checks');
+            if (error) throw error;
+            const total = (data || []).reduce((sum, row) => sum + Number(row.notifications_created || 0), 0);
+            this.admin.message = `Automation checks completed. ${total} notifications created.`;
+            await this.loadAutomationData();
+          } catch (error) {
+            this.admin.error = this.friendlyDatabaseError(error, 'Automation checks could not run.');
+          } finally {
+            this.admin.automationRunning = false;
+          }
+        },
+
         async loadAuditLogs() {
           if (!this.admin.audit) {
             this.admin.audit = { loading: false, error: '', items: [], search: '', action: 'all' };
@@ -19528,6 +19844,7 @@
             await this.loadSuperAdminData();
             if (this.currentPage === 'admin-leads') await this.loadLeadsPage();
             if (this.currentPage === 'admin-audit') await this.loadAuditLogs();
+            if (this.currentPage === 'admin-automation') await this.loadAutomationData();
             if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
             return;
           }
@@ -19587,11 +19904,12 @@
             await this.loadLeadsPage();
           }
 
-          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-leads' || page === 'admin-notes' || page === 'admin-audit' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
+          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-leads' || page === 'admin-notes' || page === 'admin-audit' || page === 'admin-automation' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
             if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
             await this.loadSuperAdminData();
             if (page === 'admin-leads') await this.loadLeadsPage();
             if (page === 'admin-audit') await this.loadAuditLogs();
+            if (page === 'admin-automation') await this.loadAutomationData();
           }
 
           if (page === 'maintenance' && this.currentShell === 'app') {
@@ -19664,6 +19982,7 @@
             'admin-leads': 'Listing Leads',
             'admin-notes': 'Notes',
             'admin-audit': 'Audit Log',
+            'admin-automation': 'Automation',
             'admin-team': 'Admin Staff',
             'admin-staff': 'IPM Management',
             'admin-management': 'Property Management Companies',

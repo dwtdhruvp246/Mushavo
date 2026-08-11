@@ -451,6 +451,13 @@ begin
   alter type public.notification_type add value if not exists 'listing_lead_created';
   alter type public.notification_type add value if not exists 'viewing_requested';
   alter type public.notification_type add value if not exists 'lead_followup_due';
+  alter type public.notification_type add value if not exists 'rent_due_reminder';
+  alter type public.notification_type add value if not exists 'overdue_rent_alert';
+  alter type public.notification_type add value if not exists 'lease_expiry_reminder';
+  alter type public.notification_type add value if not exists 'subscription_expiry_reminder';
+  alter type public.notification_type add value if not exists 'maintenance_escalation';
+  alter type public.notification_type add value if not exists 'payment_received';
+  alter type public.notification_type add value if not exists 'automation_digest';
 end $$;
 
 -- Commit enum changes before functions use newly-added enum values.
@@ -7629,6 +7636,37 @@ create trigger lead_followups_touch_updated_at
 before update on public.lead_followups
 for each row execute function public.touch_updated_at();
 
+do $$
+begin
+  if to_regclass('public.unit_listings') is not null then
+    drop policy if exists "unit listings crm read" on public.unit_listings;
+    drop policy if exists "unit listings crm insert" on public.unit_listings;
+    drop policy if exists "unit listings crm update" on public.unit_listings;
+  end if;
+
+  if to_regclass('public.listing_leads') is not null then
+    drop policy if exists "listing leads crm read" on public.listing_leads;
+    drop policy if exists "listing leads crm update" on public.listing_leads;
+  end if;
+
+  if to_regclass('public.viewing_requests') is not null then
+    drop policy if exists "viewing requests crm read" on public.viewing_requests;
+    drop policy if exists "viewing requests crm insert" on public.viewing_requests;
+    drop policy if exists "viewing requests crm update" on public.viewing_requests;
+  end if;
+
+  if to_regclass('public.lead_followups') is not null then
+    drop policy if exists "lead followups crm read" on public.lead_followups;
+    drop policy if exists "lead followups crm insert" on public.lead_followups;
+    drop policy if exists "lead followups crm update" on public.lead_followups;
+  end if;
+
+  if to_regclass('public.lead_activity') is not null then
+    drop policy if exists "lead activity crm read" on public.lead_activity;
+    drop policy if exists "lead activity crm insert" on public.lead_activity;
+  end if;
+end $$;
+
 drop function if exists public.crm_can_access_property(uuid, text);
 create or replace function public.crm_can_access_property(p_property_id uuid, p_action text default null)
 returns boolean
@@ -13297,8 +13335,914 @@ grant execute on function public.permanently_delete_staff_account(uuid) to authe
 grant execute on function public.permanently_delete_management_company(uuid, uuid) to authenticated;
 grant execute on function public.permanently_delete_management_staff_account(uuid) to authenticated;
 
+-- PHASE 7 - PERMISSION MATRIX AND AUDIT CONTROL
+create table if not exists public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  actor_profile_id uuid references public.profiles(id) on delete set null,
+  actor_role text,
+  action text not null,
+  target_table text not null,
+  target_id uuid,
+  landlord_id uuid,
+  country_id uuid references public.countries(id) on delete set null,
+  details jsonb not null default '{}'::jsonb
+);
+
+create index if not exists audit_logs_created_at_idx on public.audit_logs (created_at desc);
+create index if not exists audit_logs_actor_profile_id_idx on public.audit_logs (actor_profile_id);
+create index if not exists audit_logs_country_id_idx on public.audit_logs (country_id);
+create index if not exists audit_logs_target_table_idx on public.audit_logs (target_table);
+
+alter table public.audit_logs enable row level security;
+
+drop policy if exists audit_logs_select_admin_scope on public.audit_logs;
+create policy audit_logs_select_admin_scope on public.audit_logs
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'super_admin'
+  )
+  or exists (
+    select 1
+    from public.profiles p
+    left join public.admin_staff_country_assignments asca on asca.staff_profile_id = p.id
+    where p.id = auth.uid()
+      and p.role = 'admin_staff'
+      and (audit_logs.country_id is null or asca.country_id = audit_logs.country_id)
+  )
+);
+
+grant select on public.audit_logs to authenticated;
+
+do $$
+declare
+  permission_table text;
+  permission_column text;
+begin
+  foreach permission_table in array array[
+    'staff_permissions',
+    'management_landlord_permissions',
+    'management_staff_permissions'
+  ] loop
+    if to_regclass('public.' || permission_table) is not null then
+      foreach permission_column in array array[
+        'can_view_properties','can_add_properties','can_edit_properties','can_archive_properties',
+        'can_view_units','can_add_units','can_edit_units','can_archive_units','can_mark_units_vacant',
+        'can_view_tenants','can_add_tenants','can_edit_tenants','can_archive_tenants',
+        'can_view_leases','can_create_leases','can_edit_leases','can_terminate_leases',
+        'can_view_lease_documents','can_upload_lease_documents',
+        'can_manage_maintenance','can_create_maintenance','can_assign_maintenance','can_add_resolution_notes',
+        'can_view_payments','can_log_payments','can_reject_payments','can_view_payment_proofs','can_verify_payments',
+        'can_manage_leases','can_manage_staff','can_publish_listings','can_manage_leads','can_schedule_viewings','can_view_finance'
+      ] loop
+        execute format('alter table public.%I add column if not exists %I boolean not null default false', permission_table, permission_column);
+      end loop;
+    end if;
+  end loop;
+end $$;
+
+create or replace function public.normalize_permission_dependencies()
+returns trigger
+language plpgsql
+as $$
+begin
+  if coalesce(new.can_add_properties,false) or coalesce(new.can_edit_properties,false) or coalesce(new.can_archive_properties,false) then
+    new.can_view_properties := true;
+  end if;
+
+  if coalesce(new.can_add_units,false) or coalesce(new.can_edit_units,false) or coalesce(new.can_archive_units,false)
+     or coalesce(new.can_mark_units_vacant,false) or coalesce(new.can_publish_listings,false)
+     or coalesce(new.can_manage_leads,false) or coalesce(new.can_schedule_viewings,false) then
+    new.can_view_properties := true;
+    new.can_view_units := true;
+  end if;
+
+  if not coalesce(new.can_view_properties,false) then
+    new.can_add_properties := false;
+    new.can_edit_properties := false;
+    new.can_archive_properties := false;
+    new.can_view_units := false;
+  end if;
+
+  if not coalesce(new.can_view_units,false) then
+    new.can_add_units := false;
+    new.can_edit_units := false;
+    new.can_archive_units := false;
+    new.can_mark_units_vacant := false;
+    new.can_publish_listings := false;
+    new.can_manage_leads := false;
+    new.can_schedule_viewings := false;
+  end if;
+
+  if coalesce(new.can_add_tenants,false) or coalesce(new.can_edit_tenants,false) or coalesce(new.can_archive_tenants,false) then
+    new.can_view_tenants := true;
+  end if;
+
+  if not coalesce(new.can_view_tenants,false) then
+    new.can_add_tenants := false;
+    new.can_edit_tenants := false;
+    new.can_archive_tenants := false;
+  end if;
+
+  if coalesce(new.can_create_leases,false) or coalesce(new.can_edit_leases,false) or coalesce(new.can_terminate_leases,false)
+     or coalesce(new.can_view_lease_documents,false) or coalesce(new.can_upload_lease_documents,false) or coalesce(new.can_manage_leases,false) then
+    new.can_view_leases := true;
+  end if;
+
+  if not coalesce(new.can_view_leases,false) then
+    new.can_create_leases := false;
+    new.can_edit_leases := false;
+    new.can_terminate_leases := false;
+    new.can_view_lease_documents := false;
+    new.can_upload_lease_documents := false;
+    new.can_manage_leases := false;
+  end if;
+
+  if coalesce(new.can_create_maintenance,false) or coalesce(new.can_assign_maintenance,false) or coalesce(new.can_add_resolution_notes,false) then
+    new.can_manage_maintenance := true;
+  end if;
+
+  if not coalesce(new.can_manage_maintenance,false) then
+    new.can_create_maintenance := false;
+    new.can_assign_maintenance := false;
+    new.can_add_resolution_notes := false;
+  end if;
+
+  if coalesce(new.can_log_payments,false) or coalesce(new.can_reject_payments,false) or coalesce(new.can_view_payment_proofs,false)
+     or coalesce(new.can_verify_payments,false) or coalesce(new.can_view_finance,false) then
+    new.can_view_payments := true;
+  end if;
+
+  if not coalesce(new.can_view_payments,false) then
+    new.can_log_payments := false;
+    new.can_reject_payments := false;
+    new.can_view_payment_proofs := false;
+    new.can_verify_payments := false;
+    new.can_view_finance := false;
+  end if;
+
+  if not coalesce(new.can_manage_leads,false) then
+    new.can_schedule_viewings := false;
+  end if;
+
+  return new;
+end;
+$$;
+
+do $$
+declare
+  permission_table text;
+  trigger_name text;
+begin
+  foreach permission_table in array array[
+    'staff_permissions',
+    'management_landlord_permissions',
+    'management_staff_permissions'
+  ] loop
+    if to_regclass('public.' || permission_table) is not null then
+      trigger_name := 'normalize_' || permission_table || '_dependencies';
+      execute format('drop trigger if exists %I on public.%I', trigger_name, permission_table);
+      execute format('create trigger %I before insert or update on public.%I for each row execute function public.normalize_permission_dependencies()', trigger_name, permission_table);
+    end if;
+  end loop;
+end $$;
+
+create or replace function public.record_audit_event(
+  p_action text,
+  p_target_table text,
+  p_target_id uuid default null,
+  p_landlord_id uuid default null,
+  p_country_id uuid default null,
+  p_details jsonb default '{}'::jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_row public.profiles%rowtype;
+begin
+  select * into actor_row from public.profiles where id = auth.uid();
+
+  if auth.uid() is null or actor_row.id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  insert into public.audit_logs (
+    actor_profile_id, actor_role, action, target_table, target_id, landlord_id, country_id, details
+  ) values (
+    actor_row.id,
+    actor_row.role::text,
+    p_action,
+    p_target_table,
+    p_target_id,
+    p_landlord_id,
+    p_country_id,
+    coalesce(p_details, '{}'::jsonb)
+  );
+end;
+$$;
+
+grant execute on function public.record_audit_event(text, text, uuid, uuid, uuid, jsonb) to authenticated;
+
+create or replace function public.audit_table_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_row public.profiles%rowtype;
+  row_data jsonb;
+  old_data jsonb;
+  new_data jsonb;
+  action_name text;
+  target_uuid uuid;
+  landlord_uuid uuid;
+  country_uuid uuid;
+begin
+  select * into actor_row from public.profiles where id = auth.uid();
+
+  if tg_op = 'DELETE' then
+    row_data := to_jsonb(old);
+    old_data := to_jsonb(old);
+    new_data := null;
+    action_name := 'delete';
+  elsif tg_op = 'INSERT' then
+    row_data := to_jsonb(new);
+    old_data := null;
+    new_data := to_jsonb(new);
+    action_name := 'insert';
+  else
+    row_data := to_jsonb(new);
+    old_data := to_jsonb(old);
+    new_data := to_jsonb(new);
+
+    if coalesce(old_data->>'archived_at','') is distinct from coalesce(new_data->>'archived_at','') and coalesce(new_data->>'archived_at','') <> '' then
+      action_name := 'archive';
+    elsif coalesce(old_data->>'status','') is distinct from coalesce(new_data->>'status','')
+      and lower(coalesce(new_data->>'status','')) in ('accepted','approved','active','verified') then
+      action_name := 'approve';
+    else
+      action_name := 'update';
+    end if;
+  end if;
+
+  begin target_uuid := nullif(row_data->>'id','')::uuid; exception when others then target_uuid := null; end;
+  begin landlord_uuid := nullif(row_data->>'landlord_id','')::uuid; exception when others then landlord_uuid := null; end;
+
+  if landlord_uuid is null and tg_table_name = 'profiles' and row_data->>'role' = 'landlord' then
+    landlord_uuid := target_uuid;
+  end if;
+
+  begin country_uuid := nullif(row_data->>'country_id','')::uuid; exception when others then country_uuid := null; end;
+
+  if country_uuid is null and landlord_uuid is not null then
+    select country_id into country_uuid from public.profiles where id = landlord_uuid;
+  end if;
+
+  insert into public.audit_logs (
+    actor_profile_id, actor_role, action, target_table, target_id, landlord_id, country_id, details
+  ) values (
+    actor_row.id,
+    actor_row.role::text,
+    action_name,
+    tg_table_name,
+    target_uuid,
+    landlord_uuid,
+    country_uuid,
+    jsonb_build_object('old', old_data, 'new', new_data)
+  );
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+grant execute on function public.audit_table_change() to authenticated;
+
+do $$
+declare
+  audit_table text;
+  trigger_name text;
+begin
+  foreach audit_table in array array[
+    'profiles','countries','pricing_plans','landlord_subscriptions','landlord_subscription_admin_notes',
+    'properties','units','tenants','leases','payments','payment_submissions','lease_charges',
+    'payment_allocations','lease_ledger_entries','finance_audit_events','platform_payments',
+    'partner_payments','partner_reconciliations','maintenance_requests','maintenance_quotes',
+    'maintenance_activity','property_inspections','inspection_files','unit_listings','listing_leads',
+    'viewing_requests','lead_followups','lead_activity','staff_permissions','staff_landlord_requests',
+    'management_companies','management_landlord_permissions','management_landlord_requests',
+    'management_staff_permissions','admin_notes','enquiries','admin_staff_country_assignments'
+  ] loop
+    if to_regclass('public.' || audit_table) is not null then
+      trigger_name := 'audit_' || audit_table || '_changes';
+      execute format('drop trigger if exists %I on public.%I', trigger_name, audit_table);
+      execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.audit_table_change()', trigger_name, audit_table);
+    end if;
+  end loop;
+end $$;
+
 -- Realtime: allow the client to receive live insert/update/delete events.
 -- RLS still controls which rows each signed-in account can read after a refresh.
+create table if not exists public.automation_templates (
+  id uuid primary key default gen_random_uuid(),
+  template_key text not null unique,
+  title text not null,
+  message text not null,
+  is_enabled boolean not null default true,
+  updated_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint automation_templates_key_not_blank check (length(trim(template_key)) > 0),
+  constraint automation_templates_title_not_blank check (length(trim(title)) > 0),
+  constraint automation_templates_message_not_blank check (length(trim(message)) > 0)
+);
+
+create table if not exists public.automation_rules (
+  id uuid primary key default gen_random_uuid(),
+  rule_key text not null unique,
+  name text not null,
+  is_enabled boolean not null default true,
+  days_before integer not null default 0 check (days_before >= 0),
+  days_after integer not null default 0 check (days_after >= 0),
+  threshold_days integer not null default 0 check (threshold_days >= 0),
+  target_roles text[] not null default '{}'::text[],
+  updated_by uuid null references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint automation_rules_key_check check (rule_key in (
+    'rent_due_reminder',
+    'overdue_rent_alert',
+    'lease_expiry_reminder',
+    'subscription_expiry_reminder',
+    'maintenance_escalation',
+    'payment_received_notifications'
+  )),
+  constraint automation_rules_name_not_blank check (length(trim(name)) > 0)
+);
+
+create table if not exists public.automation_runs (
+  id uuid primary key default gen_random_uuid(),
+  rule_key text not null,
+  target_table text not null,
+  target_id uuid not null,
+  recipient_profile_id uuid null references public.profiles(id) on delete set null,
+  landlord_id uuid null references public.profiles(id) on delete set null,
+  dedupe_key text not null unique,
+  notification_id uuid null references public.notifications(id) on delete set null,
+  status text not null default 'sent',
+  message text not null,
+  run_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  constraint automation_runs_status_check check (status in ('sent', 'skipped', 'failed'))
+);
+
+create table if not exists public.notification_preferences (
+  profile_id uuid primary key references public.profiles(id) on delete cascade,
+  rent_due_reminders boolean not null default true,
+  overdue_rent_alerts boolean not null default true,
+  lease_expiry_reminders boolean not null default true,
+  subscription_expiry_reminders boolean not null default true,
+  maintenance_escalations boolean not null default true,
+  payment_received_notifications boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists automation_runs_recipient_idx on public.automation_runs (recipient_profile_id, run_at desc);
+create index if not exists automation_runs_landlord_idx on public.automation_runs (landlord_id, run_at desc);
+create index if not exists automation_runs_rule_idx on public.automation_runs (rule_key, run_at desc);
+
+drop trigger if exists automation_templates_touch_updated_at on public.automation_templates;
+create trigger automation_templates_touch_updated_at
+before update on public.automation_templates
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists automation_rules_touch_updated_at on public.automation_rules;
+create trigger automation_rules_touch_updated_at
+before update on public.automation_rules
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists notification_preferences_touch_updated_at on public.notification_preferences;
+create trigger notification_preferences_touch_updated_at
+before update on public.notification_preferences
+for each row execute function public.touch_updated_at();
+
+do $$
+declare
+  audit_table text;
+  trigger_name text;
+begin
+  foreach audit_table in array array[
+    'automation_templates',
+    'automation_rules',
+    'automation_runs',
+    'notification_preferences'
+  ] loop
+    trigger_name := 'audit_' || audit_table || '_changes';
+    execute format('drop trigger if exists %I on public.%I', trigger_name, audit_table);
+    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.audit_table_change()', trigger_name, audit_table);
+  end loop;
+end $$;
+
+insert into public.automation_rules (rule_key, name, is_enabled, days_before, days_after, threshold_days, target_roles)
+values
+  ('rent_due_reminder', 'Rent due reminders', true, 5, 0, 0, array['tenant']),
+  ('overdue_rent_alert', 'Overdue rent alerts', true, 0, 1, 0, array['tenant', 'landlord']),
+  ('lease_expiry_reminder', 'Lease expiry reminders', true, 30, 0, 0, array['tenant', 'landlord']),
+  ('subscription_expiry_reminder', 'Subscription expiry reminders', true, 7, 0, 0, array['landlord', 'staff', 'management_leader']),
+  ('maintenance_escalation', 'Maintenance escalation', true, 0, 0, 3, array['landlord', 'staff']),
+  ('payment_received_notifications', 'Payment received notifications', true, 0, 0, 0, array['tenant', 'landlord'])
+on conflict (rule_key) do nothing;
+
+insert into public.automation_templates (template_key, title, message)
+values
+  ('rent_due_reminder', 'Rent due reminder', 'Your rent for {property} / Unit {unit} is due on {date}.'),
+  ('overdue_rent_alert', 'Overdue rent alert', 'Rent for {property} / Unit {unit} is overdue. Outstanding rent reminders only apply to rent payments.'),
+  ('lease_expiry_reminder', 'Lease expiry reminder', 'The lease for {tenant} at {property} / Unit {unit} expires on {date}.'),
+  ('subscription_expiry_reminder', 'Subscription expiry reminder', 'Your Mushavo subscription expires on {date}. Please contact support if you need renewal help.'),
+  ('maintenance_escalation', 'Maintenance escalation', 'Maintenance request for {property} / Unit {unit} has been open for {days} days and needs attention.'),
+  ('payment_received_notifications', 'Payment received', 'Payment of {amount} for {purpose} has been recorded for {tenant}.')
+on conflict (template_key) do nothing;
+
+create or replace function public.is_admin_or_admin_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role in ('super_admin', 'admin_staff')
+      and p.archived_at is null
+      and p.access_suspended_at is null
+  );
+$$;
+
+create or replace function public.automation_template_message(p_template_key text, p_fallback text)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select at.message
+      from public.automation_templates at
+      where at.template_key = p_template_key
+        and at.is_enabled = true
+      limit 1
+    ),
+    p_fallback
+  );
+$$;
+
+create or replace function public.automation_preference_enabled(p_profile_id uuid, p_rule_key text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  prefs public.notification_preferences%rowtype;
+begin
+  select * into prefs
+  from public.notification_preferences
+  where profile_id = p_profile_id;
+
+  if not found then
+    return true;
+  end if;
+
+  if p_rule_key = 'rent_due_reminder' then
+    return prefs.rent_due_reminders;
+  elsif p_rule_key = 'overdue_rent_alert' then
+    return prefs.overdue_rent_alerts;
+  elsif p_rule_key = 'lease_expiry_reminder' then
+    return prefs.lease_expiry_reminders;
+  elsif p_rule_key = 'subscription_expiry_reminder' then
+    return prefs.subscription_expiry_reminders;
+  elsif p_rule_key = 'maintenance_escalation' then
+    return prefs.maintenance_escalations;
+  elsif p_rule_key = 'payment_received_notifications' then
+    return prefs.payment_received_notifications;
+  end if;
+
+  return true;
+end;
+$$;
+
+create or replace function public.create_automation_notification(
+  p_rule_key text,
+  p_profile_id uuid,
+  p_landlord_id uuid,
+  p_notification_type public.notification_type,
+  p_message text,
+  p_related_id uuid,
+  p_target_table text,
+  p_target_id uuid,
+  p_dedupe_key text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  created_notification_id uuid;
+begin
+  if p_profile_id is null or p_dedupe_key is null then
+    return false;
+  end if;
+
+  if exists (select 1 from public.automation_runs where dedupe_key = p_dedupe_key) then
+    return false;
+  end if;
+
+  if not public.automation_preference_enabled(p_profile_id, p_rule_key) then
+    insert into public.automation_runs (
+      rule_key, target_table, target_id, recipient_profile_id, landlord_id, dedupe_key, status, message
+    )
+    values (
+      p_rule_key, p_target_table, p_target_id, p_profile_id, p_landlord_id, p_dedupe_key, 'skipped', p_message
+    )
+    on conflict (dedupe_key) do nothing;
+    return false;
+  end if;
+
+  insert into public.notifications (profile_id, landlord_id, type, message, related_id)
+  values (p_profile_id, p_landlord_id, p_notification_type, p_message, p_related_id)
+  returning id into created_notification_id;
+
+  insert into public.automation_runs (
+    rule_key, target_table, target_id, recipient_profile_id, landlord_id, dedupe_key, notification_id, status, message
+  )
+  values (
+    p_rule_key, p_target_table, p_target_id, p_profile_id, p_landlord_id, p_dedupe_key, created_notification_id, 'sent', p_message
+  )
+  on conflict (dedupe_key) do nothing;
+
+  return true;
+end;
+$$;
+
+create or replace function public.run_automation_checks()
+returns table(rule_key text, notifications_created integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  rule_record record;
+  item_record record;
+  created_count integer;
+  due_date date;
+  due_day integer;
+  month_last_day integer;
+  message_text text;
+  amount_text text;
+begin
+  if not public.is_admin_or_admin_staff() then
+    raise exception 'Only Mushavo admin accounts can run automation checks.';
+  end if;
+
+  for rule_record in select * from public.automation_rules where is_enabled = true order by rule_key loop
+    created_count := 0;
+
+    if rule_record.rule_key = 'subscription_expiry_reminder' then
+      for item_record in
+        select ls.id, ls.landlord_id as profile_id, ls.landlord_id, ls.expires_at::date as expires_on
+        from public.landlord_subscriptions ls
+        join public.profiles p on p.id = ls.landlord_id
+        where ls.access_suspended_at is null
+          and p.archived_at is null
+          and ls.status in ('trial', 'active')
+          and ls.expires_at::date between current_date and (current_date + rule_record.days_before)
+
+        union all
+
+        select p.id, p.id as profile_id, null::uuid as landlord_id, p.staff_subscription_expires_at as expires_on
+        from public.profiles p
+        where p.role = 'staff'
+          and p.staff_type = 'freelancer'
+          and p.archived_at is null
+          and p.access_suspended_at is null
+          and p.staff_subscription_status in ('trial', 'active')
+          and p.staff_subscription_expires_at between current_date and (current_date + rule_record.days_before)
+
+        union all
+
+        select mc.id, mc.leader_profile_id as profile_id, null::uuid as landlord_id, mc.subscription_expires_at as expires_on
+        from public.management_companies mc
+        join public.profiles p on p.id = mc.leader_profile_id
+        where mc.archived_at is null
+          and p.archived_at is null
+          and mc.access_suspended_at is null
+          and mc.subscription_status in ('trial', 'active')
+          and mc.subscription_expires_at between current_date and (current_date + rule_record.days_before)
+      loop
+        message_text := replace(
+          public.automation_template_message('subscription_expiry_reminder', 'Your Mushavo subscription expires on {date}.'),
+          '{date}',
+          to_char(item_record.expires_on, 'Mon DD, YYYY')
+        );
+        if public.create_automation_notification(
+          'subscription_expiry_reminder',
+          item_record.profile_id,
+          item_record.landlord_id,
+          'subscription_expiry_reminder',
+          message_text,
+          item_record.id,
+          'subscriptions',
+          item_record.id,
+          'subscription_expiry:' || item_record.id::text || ':' || item_record.expires_on::text
+        ) then
+          created_count := created_count + 1;
+        end if;
+      end loop;
+
+    elsif rule_record.rule_key = 'lease_expiry_reminder' then
+      for item_record in
+        select
+          l.id,
+          l.landlord_id,
+          l.end_date,
+          t.profile_id as tenant_profile_id,
+          t.full_name as tenant_name,
+          u.unit_number,
+          p.name as property_name
+        from public.leases l
+        join public.tenants t on t.id = l.tenant_id
+        join public.units u on u.id = l.unit_id
+        join public.properties p on p.id = u.property_id
+        where l.status = 'active'
+          and l.end_date between current_date and (current_date + rule_record.days_before)
+      loop
+        message_text := public.automation_template_message('lease_expiry_reminder', 'The lease for {tenant} at {property} / Unit {unit} expires on {date}.');
+        message_text := replace(message_text, '{tenant}', coalesce(item_record.tenant_name, 'Tenant'));
+        message_text := replace(message_text, '{property}', coalesce(item_record.property_name, 'Property'));
+        message_text := replace(message_text, '{unit}', coalesce(item_record.unit_number, '-'));
+        message_text := replace(message_text, '{date}', to_char(item_record.end_date, 'Mon DD, YYYY'));
+
+        if public.create_automation_notification('lease_expiry_reminder', item_record.landlord_id, item_record.landlord_id, 'lease_expiry_reminder', message_text, item_record.id, 'leases', item_record.id, 'lease_expiry:landlord:' || item_record.id::text || ':' || item_record.end_date::text) then
+          created_count := created_count + 1;
+        end if;
+        if public.create_automation_notification('lease_expiry_reminder', item_record.tenant_profile_id, item_record.landlord_id, 'lease_expiry_reminder', message_text, item_record.id, 'leases', item_record.id, 'lease_expiry:tenant:' || item_record.id::text || ':' || item_record.end_date::text) then
+          created_count := created_count + 1;
+        end if;
+      end loop;
+
+    elsif rule_record.rule_key = 'rent_due_reminder' then
+      month_last_day := extract(day from (date_trunc('month', current_date) + interval '1 month - 1 day'))::integer;
+      for item_record in
+        select
+          l.id,
+          l.landlord_id,
+          l.start_date,
+          t.profile_id as tenant_profile_id,
+          u.unit_number,
+          p.name as property_name
+        from public.leases l
+        join public.tenants t on t.id = l.tenant_id
+        join public.units u on u.id = l.unit_id
+        join public.properties p on p.id = u.property_id
+        where l.status = 'active'
+          and t.profile_id is not null
+      loop
+        due_day := least(extract(day from item_record.start_date)::integer, month_last_day);
+        due_date := (date_trunc('month', current_date)::date + (due_day - 1));
+        if current_date between (due_date - rule_record.days_before) and due_date then
+          message_text := public.automation_template_message('rent_due_reminder', 'Your rent for {property} / Unit {unit} is due on {date}.');
+          message_text := replace(message_text, '{property}', coalesce(item_record.property_name, 'Property'));
+          message_text := replace(message_text, '{unit}', coalesce(item_record.unit_number, '-'));
+          message_text := replace(message_text, '{date}', to_char(due_date, 'Mon DD, YYYY'));
+          if public.create_automation_notification('rent_due_reminder', item_record.tenant_profile_id, item_record.landlord_id, 'rent_due_reminder', message_text, item_record.id, 'leases', item_record.id, 'rent_due:' || item_record.id::text || ':' || due_date::text) then
+            created_count := created_count + 1;
+          end if;
+        end if;
+      end loop;
+
+    elsif rule_record.rule_key = 'overdue_rent_alert' then
+      month_last_day := extract(day from (date_trunc('month', current_date) + interval '1 month - 1 day'))::integer;
+      for item_record in
+        select
+          l.id,
+          l.landlord_id,
+          l.start_date,
+          t.profile_id as tenant_profile_id,
+          u.unit_number,
+          p.name as property_name
+        from public.leases l
+        join public.tenants t on t.id = l.tenant_id
+        join public.units u on u.id = l.unit_id
+        join public.properties p on p.id = u.property_id
+        where l.status = 'active'
+          and not exists (
+            select 1
+            from public.payments pay
+            where pay.lease_id = l.id
+              and coalesce(pay.payment_purpose, 'rent') = 'rent'
+              and (
+                pay.payment_date >= date_trunc('month', current_date)::date
+                and pay.payment_date < (date_trunc('month', current_date)::date + interval '1 month')
+              )
+          )
+      loop
+        due_day := least(extract(day from item_record.start_date)::integer, month_last_day);
+        due_date := (date_trunc('month', current_date)::date + (due_day - 1));
+        if current_date > (due_date + rule_record.days_after) then
+          message_text := public.automation_template_message('overdue_rent_alert', 'Rent for {property} / Unit {unit} is overdue.');
+          message_text := replace(message_text, '{property}', coalesce(item_record.property_name, 'Property'));
+          message_text := replace(message_text, '{unit}', coalesce(item_record.unit_number, '-'));
+          message_text := replace(message_text, '{date}', to_char(due_date, 'Mon DD, YYYY'));
+          if public.create_automation_notification('overdue_rent_alert', item_record.landlord_id, item_record.landlord_id, 'overdue_rent_alert', message_text, item_record.id, 'leases', item_record.id, 'overdue_rent:landlord:' || item_record.id::text || ':' || due_date::text) then
+            created_count := created_count + 1;
+          end if;
+          if public.create_automation_notification('overdue_rent_alert', item_record.tenant_profile_id, item_record.landlord_id, 'overdue_rent_alert', message_text, item_record.id, 'leases', item_record.id, 'overdue_rent:tenant:' || item_record.id::text || ':' || due_date::text) then
+            created_count := created_count + 1;
+          end if;
+        end if;
+      end loop;
+
+    elsif rule_record.rule_key = 'maintenance_escalation' then
+      for item_record in
+        select
+          mr.id,
+          mr.landlord_id,
+          mr.assigned_to_staff_id,
+          mr.created_at,
+          u.unit_number,
+          p.name as property_name
+        from public.maintenance_requests mr
+        left join public.units u on u.id = mr.unit_id
+        left join public.properties p on p.id = u.property_id
+        where mr.status in ('open', 'quote_requested', 'quote_sent', 'approved', 'scheduled', 'in_progress')
+          and mr.created_at::date <= (current_date - rule_record.threshold_days)
+      loop
+        message_text := public.automation_template_message('maintenance_escalation', 'Maintenance request for {property} / Unit {unit} has been open for {days} days and needs attention.');
+        message_text := replace(message_text, '{property}', coalesce(item_record.property_name, 'Property'));
+        message_text := replace(message_text, '{unit}', coalesce(item_record.unit_number, '-'));
+        message_text := replace(message_text, '{days}', greatest(0, current_date - item_record.created_at::date)::text);
+        if public.create_automation_notification('maintenance_escalation', item_record.landlord_id, item_record.landlord_id, 'maintenance_escalation', message_text, item_record.id, 'maintenance_requests', item_record.id, 'maintenance_escalation:landlord:' || item_record.id::text || ':' || current_date::text) then
+          created_count := created_count + 1;
+        end if;
+        if public.create_automation_notification('maintenance_escalation', item_record.assigned_to_staff_id, item_record.landlord_id, 'maintenance_escalation', message_text, item_record.id, 'maintenance_requests', item_record.id, 'maintenance_escalation:staff:' || item_record.id::text || ':' || current_date::text) then
+          created_count := created_count + 1;
+        end if;
+      end loop;
+    end if;
+
+    rule_key := rule_record.rule_key;
+    notifications_created := created_count;
+    return next;
+  end loop;
+end;
+$$;
+
+create or replace function public.notify_payment_recorded()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  lease_record record;
+  message_text text;
+begin
+  select
+    l.landlord_id,
+    t.profile_id as tenant_profile_id,
+    t.full_name as tenant_name
+  into lease_record
+  from public.leases l
+  left join public.tenants t on t.id = l.tenant_id
+  where l.id = new.lease_id;
+
+  message_text := public.automation_template_message('payment_received_notifications', 'Payment of {amount} for {purpose} has been recorded for {tenant}.');
+  message_text := replace(message_text, '{amount}', coalesce(new.amount_paid, 0)::text);
+  message_text := replace(message_text, '{purpose}', initcap(replace(coalesce(new.payment_purpose, 'rent'), '_', ' ')));
+  message_text := replace(message_text, '{tenant}', coalesce(lease_record.tenant_name, 'the tenant'));
+
+  perform public.create_automation_notification(
+    'payment_received_notifications',
+    lease_record.tenant_profile_id,
+    lease_record.landlord_id,
+    'payment_received',
+    message_text,
+    new.id,
+    'payments',
+    new.id,
+    'payment_received:tenant:' || new.id::text
+  );
+
+  perform public.create_automation_notification(
+    'payment_received_notifications',
+    lease_record.landlord_id,
+    lease_record.landlord_id,
+    'payment_received',
+    message_text,
+    new.id,
+    'payments',
+    new.id,
+    'payment_received:landlord:' || new.id::text
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists payments_notify_payment_recorded on public.payments;
+create trigger payments_notify_payment_recorded
+after insert on public.payments
+for each row execute function public.notify_payment_recorded();
+
+alter table public.automation_templates enable row level security;
+alter table public.automation_rules enable row level security;
+alter table public.automation_runs enable row level security;
+alter table public.notification_preferences enable row level security;
+
+drop policy if exists automation_templates_admin_read on public.automation_templates;
+create policy automation_templates_admin_read
+on public.automation_templates
+for select
+to authenticated
+using (public.is_admin_or_admin_staff());
+
+drop policy if exists automation_templates_super_admin_write on public.automation_templates;
+create policy automation_templates_super_admin_write
+on public.automation_templates
+for all
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
+
+drop policy if exists automation_rules_admin_read on public.automation_rules;
+create policy automation_rules_admin_read
+on public.automation_rules
+for select
+to authenticated
+using (public.is_admin_or_admin_staff());
+
+drop policy if exists automation_rules_super_admin_write on public.automation_rules;
+create policy automation_rules_super_admin_write
+on public.automation_rules
+for all
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
+
+drop policy if exists automation_runs_admin_or_recipient_read on public.automation_runs;
+create policy automation_runs_admin_or_recipient_read
+on public.automation_runs
+for select
+to authenticated
+using (public.is_admin_or_admin_staff() or recipient_profile_id = auth.uid());
+
+drop policy if exists automation_runs_admin_write on public.automation_runs;
+create policy automation_runs_admin_write
+on public.automation_runs
+for all
+to authenticated
+using (public.is_admin_or_admin_staff())
+with check (public.is_admin_or_admin_staff());
+
+drop policy if exists notification_preferences_own_read on public.notification_preferences;
+create policy notification_preferences_own_read
+on public.notification_preferences
+for select
+to authenticated
+using (profile_id = auth.uid() or public.is_admin_or_admin_staff());
+
+drop policy if exists notification_preferences_own_write on public.notification_preferences;
+create policy notification_preferences_own_write
+on public.notification_preferences
+for all
+to authenticated
+using (profile_id = auth.uid() or public.is_admin_or_admin_staff())
+with check (profile_id = auth.uid() or public.is_admin_or_admin_staff());
+
+grant select on table public.automation_templates, public.automation_rules, public.automation_runs, public.notification_preferences to authenticated;
+grant insert, update, delete on table public.automation_templates, public.automation_rules to authenticated;
+grant insert, update on table public.automation_runs, public.notification_preferences to authenticated;
+grant execute on function public.is_admin_or_admin_staff() to authenticated;
+grant execute on function public.automation_template_message(text, text) to authenticated;
+grant execute on function public.automation_preference_enabled(uuid, text) to authenticated;
+grant execute on function public.create_automation_notification(text, uuid, uuid, public.notification_type, text, uuid, text, uuid, text) to authenticated;
+grant execute on function public.run_automation_checks() to authenticated;
+
 do $$
 declare
   realtime_table text;
@@ -13341,7 +14285,12 @@ begin
     'management_staff_permissions',
     'invite_tokens',
     'admin_notes',
+    'audit_logs',
     'enquiries',
+    'automation_templates',
+    'automation_rules',
+    'automation_runs',
+    'notification_preferences',
     'admin_staff_country_assignments'
   ]
   loop
