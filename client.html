@@ -11897,18 +11897,18 @@
         adminNavItems() {
           const items = [
             { page: 'admin-dashboard', label: 'Dashboard', icon: 'dashboard', visible: true },
-            { page: 'landlord-management', label: 'Landlords', icon: 'building', visible: true },
-            { page: 'admin-finance', label: 'Finance', icon: 'chart', visible: true },
-            { page: 'admin-pricing', label: 'Pricing', icon: 'card', visible: this.profile?.role === 'super_admin' },
-            { page: 'admin-tenants', label: 'Tenants', icon: 'users', visible: true },
-            { page: 'admin-enquiries', label: 'Enquiries', icon: 'file', visible: true },
-            { page: 'admin-leads', label: 'Leads', icon: 'users', visible: true },
             { page: 'admin-notes', label: 'Notes', icon: 'file', visible: true },
-            { page: 'admin-audit', label: 'Audit', icon: 'file', visible: true },
-            { page: 'admin-automation', label: 'Automation', icon: 'settings', visible: true },
-            { page: 'admin-team', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'super_admin' },
+            { page: 'landlord-management', label: 'Landlords', icon: 'building', visible: true },
             { page: 'admin-staff', label: 'IPM', icon: 'account', visible: true },
-            { page: 'admin-management', label: 'PMC', icon: 'building', visible: true }
+            { page: 'admin-management', label: 'PMC', icon: 'building', visible: true },
+            { page: 'admin-team', label: 'Staff', icon: 'badge', visible: this.profile?.role === 'super_admin' },
+            { page: 'admin-tenants', label: 'Tenants', icon: 'users', visible: true },
+            { page: 'admin-finance', label: 'Finance', icon: 'chart', visible: true },
+            { page: 'admin-enquiries', label: 'Enquiries', icon: 'file', visible: true },
+            { page: 'admin-pricing', label: 'Pricing', icon: 'card', visible: this.profile?.role === 'super_admin' },
+            { page: 'admin-leads', label: 'Leads', icon: 'users', visible: true },
+            { page: 'admin-automation', label: 'Automation', icon: 'settings', visible: true },
+            { page: 'admin-audit', label: 'Audit', icon: 'file', visible: true }
           ];
 
           return items.filter(item => item.visible);
