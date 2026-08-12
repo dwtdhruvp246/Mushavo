@@ -3960,6 +3960,7 @@
                         <p class="mt-1 text-sm text-slate-500">Create leases and review lease-level payment history.</p>
                       </div>
                       <div class="flex flex-wrap gap-2">
+                        <button x-show="canCreateLeases() || canEditLeases()" class="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 sm:w-auto" type="button" @click="openAiLeaseAssistant()">Let AI help you write your lease agreement</button>
                         <button x-show="canAssignTenantToUnit() && !tenantLease.showLeaseForm" class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="tenantLease.showLeaseForm = true">Add Lease</button>
                         <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="refreshCurrentPage">Refresh</button>
                       </div>
@@ -4022,6 +4023,140 @@
                       Deposit paid
                     </label>
                   </section>
+
+                  <div x-show="aiLease.open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-sm sm:p-4" @keydown.escape.window="closeAiLeaseAssistant()">
+                    <section class="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/60 bg-white/95 p-4 shadow-2xl sm:p-6">
+                      <div class="mb-5 flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                          <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Lease assistant</p>
+                          <h2 class="mt-2 text-xl font-bold text-slate-900">Let AI help you write your lease agreement</h2>
+                          <p class="mt-1 max-w-3xl text-sm text-slate-500">Build a clean draft from your lease details and selected clauses. Keep provider keys server-side through a Supabase Edge Function, Cloudflare Worker, or other backend endpoint.</p>
+                        </div>
+                        <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50" type="button" @click="closeAiLeaseAssistant()">Close</button>
+                      </div>
+
+                      <template x-if="aiLease.error">
+                        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" x-text="aiLease.error"></div>
+                      </template>
+
+                      <div class="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+                        <div class="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-4">
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Lease to use</span>
+                            <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.leaseId" @change="syncAiLeaseFromSelectedLease" x-effect='$nextTick(() => { $el.value = aiLease.form.leaseId ?? "" })'>
+                              <option value="">Select lease</option>
+                              <template x-for="lease in tenantLease.leases" :key="lease.id">
+                                <option :value="lease.id" x-text="leaseAiOptionLabel(lease)"></option>
+                              </template>
+                            </select>
+                          </label>
+
+                          <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Agreement type</span>
+                              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.agreementType" x-effect='$nextTick(() => { $el.value = aiLease.form.agreementType ?? "fixed_term" })'>
+                                <option value="fixed_term">Fixed-term residential</option>
+                                <option value="month_to_month">Month-to-month residential</option>
+                                <option value="commercial">Commercial</option>
+                                <option value="custom">Custom</option>
+                              </select>
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Country or jurisdiction</span>
+                              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.jurisdiction" placeholder="Zimbabwe, Malaysia, etc.">
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Rent due day</span>
+                              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.rentDueDay" placeholder="1">
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Grace period</span>
+                              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.gracePeriod" placeholder="5 days">
+                            </label>
+                            <label class="block sm:col-span-2">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Late fee wording</span>
+                              <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.lateFee" placeholder="Example: Late fees apply only if permitted by local law.">
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Pets</span>
+                              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.pets">
+                                <option value="not_allowed">Not allowed</option>
+                                <option value="allowed_with_approval">Allowed with written approval</option>
+                                <option value="allowed">Allowed</option>
+                              </select>
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Smoking</span>
+                              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.smoking">
+                                <option value="not_allowed">Not allowed</option>
+                                <option value="outdoor_only">Outdoor areas only</option>
+                                <option value="allowed">Allowed</option>
+                              </select>
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Furnishing</span>
+                              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.furnishing">
+                                <option value="unfurnished">Unfurnished</option>
+                                <option value="partly_furnished">Partly furnished</option>
+                                <option value="fully_furnished">Fully furnished</option>
+                              </select>
+                            </label>
+                            <label class="block">
+                              <span class="mb-2 block text-sm font-medium text-slate-700">Parking</span>
+                              <select class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.parking">
+                                <option value="not_included">Not included</option>
+                                <option value="one_space">One space included</option>
+                                <option value="as_agreed">As separately agreed</option>
+                              </select>
+                            </label>
+                          </div>
+
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Utilities</span>
+                            <textarea class="min-h-24 w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.utilities"></textarea>
+                          </label>
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Maintenance responsibilities</span>
+                            <textarea class="min-h-24 w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.maintenance"></textarea>
+                          </label>
+
+                          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p class="text-sm font-semibold text-slate-900">Add-ons</p>
+                            <div class="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                              <label class="flex items-start gap-2"><input class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" type="checkbox" x-model="aiLease.form.includeInspection"> Move-in condition report</label>
+                              <label class="flex items-start gap-2"><input class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" type="checkbox" x-model="aiLease.form.includeDepositDeductions"> Deposit deduction rules</label>
+                              <label class="flex items-start gap-2"><input class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" type="checkbox" x-model="aiLease.form.includeAccessNotice"> Landlord access notice</label>
+                              <label class="flex items-start gap-2"><input class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" type="checkbox" x-model="aiLease.form.includeSubletting"> Subletting rule</label>
+                              <label class="flex items-start gap-2"><input class="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" type="checkbox" x-model="aiLease.form.includeNoiseRules"> Noise and common areas</label>
+                            </div>
+                          </div>
+
+                          <label class="block">
+                            <span class="mb-2 block text-sm font-medium text-slate-700">Extra terms to include</span>
+                            <textarea class="min-h-24 w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.form.customAddons" placeholder="Add any special clauses or landlord instructions."></textarea>
+                          </label>
+                        </div>
+
+                        <div class="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 class="text-base font-bold text-slate-900">Draft preview</h3>
+                              <p class="mt-1 text-xs text-slate-600">Review and edit before sending to any tenant or lawyer.</p>
+                            </div>
+                            <button class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" type="button" @click="generateAiLeaseDraft" :disabled="aiLease.generating">Generate draft</button>
+                          </div>
+                          <textarea class="min-h-[520px] w-full rounded-xl border border-emerald-100 bg-white/90 px-4 py-3 font-mono text-xs leading-6 text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" x-model="aiLease.draft" placeholder="Your draft will appear here."></textarea>
+                          <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                            <button class="rounded-lg border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="copyAiLeaseDraft" x-text="aiLease.copied ? 'Copied' : 'Copy draft'"></button>
+                            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="downloadAiLeaseDraft">Download text</button>
+                          </div>
+                          <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                            This is a drafting aid, not legal advice. Lease wording should be checked against local law before it is signed.
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
 
                   <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
                     <div class="overflow-x-auto">
@@ -6266,6 +6401,7 @@
     const COMPANY_NAME = 'Mushavo';
     const COMPANY_TAGLINE = 'Your property, handled simply.';
     const SUPPORT_EMAIL = 'dhruvp246@gmail.com';
+    const AI_LEASE_ENDPOINT = '';
 
     const PERMISSION_MATRIX = {
       can_view_properties: { form: 'canViewProperties', parents: [] },
@@ -7104,6 +7240,35 @@
             depositAmount: 0,
             depositPaid: false,
             documentFile: null
+          }
+        },
+        aiLease: {
+          open: false,
+          generating: false,
+          copied: false,
+          error: '',
+          draft: '',
+          form: {
+            leaseId: '',
+            agreementType: 'fixed_term',
+            jurisdiction: '',
+            rentDueDay: '1',
+            gracePeriod: '5 days',
+            lateFee: 'Late fees may apply only if permitted by local law and written into this agreement.',
+            utilities: 'The tenant pays utilities directly unless listed otherwise. Any utilities kept in the landlord name will be billed to the tenant with supporting records.',
+            maintenance: 'The landlord handles structural repairs and essential services. The tenant must promptly report issues, keep the unit clean, and avoid negligent damage.',
+            pets: 'not_allowed',
+            smoking: 'not_allowed',
+            furnishing: 'unfurnished',
+            parking: 'not_included',
+            noticePeriod: '30 days',
+            renewalTerms: 'Renewal must be agreed in writing before the lease end date.',
+            includeInspection: true,
+            includeDepositDeductions: true,
+            includeAccessNotice: true,
+            includeSubletting: true,
+            includeNoiseRules: true,
+            customAddons: ''
           }
         },
 
@@ -17960,6 +18125,242 @@
         prefillLeaseRent() {
           const unit = this.tenantLease.units.find(item => item.id === this.tenantLease.leaseForm.unitId);
           if (unit) this.tenantLease.leaseForm.rent = Number(unit.monthly_rent || 0);
+        },
+
+        leaseAiOptionLabel(lease) {
+          const tenant = lease?.tenant?.full_name || 'Tenant';
+          return `${tenant} - ${this.leasePropertyLabel(lease)} / Unit ${this.leaseUnitLabel(lease)} - ${this.formatDate(lease?.start_date)} to ${this.formatDate(lease?.end_date)}`;
+        },
+
+        openAiLeaseAssistant(lease = null) {
+          const selectedLease = lease || this.tenantLease.selectedLease || this.tenantLease.leases[0] || null;
+          this.aiLease.open = true;
+          this.aiLease.error = '';
+          this.aiLease.copied = false;
+
+          if (selectedLease?.id) {
+            this.aiLease.form.leaseId = selectedLease.id;
+            this.syncAiLeaseFromSelectedLease();
+          }
+
+          if (!this.aiLease.draft && selectedLease?.id) {
+            this.generateAiLeaseDraft();
+          }
+        },
+
+        closeAiLeaseAssistant() {
+          this.aiLease.open = false;
+          this.aiLease.error = '';
+        },
+
+        selectedAiLeaseRecord() {
+          return this.tenantLease.leases.find(item => item.id === this.aiLease.form.leaseId)
+            || this.tenantLease.selectedLease
+            || null;
+        },
+
+        syncAiLeaseFromSelectedLease() {
+          const lease = this.selectedAiLeaseRecord();
+          if (!lease) return;
+          const property = lease?.unit?.properties || lease?.unit?.property || lease?.units?.properties || {};
+          const countryName = property?.country?.name || property?.country_name || '';
+          const jurisdiction = [property.city, countryName].filter(Boolean).join(', ');
+          if (jurisdiction && !this.aiLease.form.jurisdiction) this.aiLease.form.jurisdiction = jurisdiction;
+          this.aiLease.error = '';
+        },
+
+        leaseAiContext(lease = this.selectedAiLeaseRecord()) {
+          const property = lease?.unit?.properties || lease?.unit?.property || lease?.units?.properties || {};
+          return {
+            tenantName: lease?.tenant?.full_name || 'Tenant',
+            landlordName: this.profile?.full_name || this.user?.email || 'Landlord',
+            propertyName: property.name || this.leasePropertyLabel(lease),
+            unitLabel: this.leaseUnitLabel(lease),
+            address: [property.address, property.city].filter(Boolean).join(', ') || 'Property address',
+            startDate: this.formatDate(lease?.start_date),
+            endDate: this.formatDate(lease?.end_date),
+            monthlyRent: this.formatCurrency(lease?.monthly_rent),
+            depositAmount: this.formatCurrency(lease?.deposit_amount),
+            depositPaid: lease?.deposit_paid ? 'paid' : 'unpaid'
+          };
+        },
+
+        aiLeaseChoiceLabel(type, value) {
+          const labels = {
+            pets: {
+              not_allowed: 'Pets are not allowed without written approval.',
+              allowed_with_approval: 'Pets require written landlord approval.',
+              allowed: 'Pets are allowed subject to cleanliness and damage rules.'
+            },
+            smoking: {
+              not_allowed: 'Smoking is not allowed inside the unit.',
+              outdoor_only: 'Smoking is allowed only in approved outdoor areas.',
+              allowed: 'Smoking rules must follow building and local regulations.'
+            },
+            furnishing: {
+              unfurnished: 'The unit is leased unfurnished.',
+              partly_furnished: 'The unit is partly furnished as listed in the inventory.',
+              fully_furnished: 'The unit is fully furnished as listed in the inventory.'
+            },
+            parking: {
+              not_included: 'Parking is not included unless separately agreed.',
+              one_space: 'One parking space is included.',
+              as_agreed: 'Parking is handled as separately agreed in writing.'
+            }
+          };
+          return labels[type]?.[value] || this.titleCase(value || '');
+        },
+
+        async generateAiLeaseDraft() {
+          this.aiLease.error = '';
+          const lease = this.selectedAiLeaseRecord();
+          if (!lease) {
+            this.aiLease.error = 'Select a lease first so the draft can use tenant, unit, rent, and dates.';
+            return;
+          }
+
+          this.aiLease.generating = true;
+          const context = this.leaseAiContext(lease);
+
+          try {
+            if (AI_LEASE_ENDPOINT) {
+              const response = await fetch(AI_LEASE_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lease: context,
+                  options: this.aiLease.form
+                })
+              });
+              const result = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(result.error || 'The AI lease service could not create a draft.');
+              if (!result.draft) throw new Error('The AI lease service did not return a draft.');
+              this.aiLease.draft = result.draft;
+            } else {
+              this.aiLease.draft = this.buildAiLeaseDraft(context);
+            }
+          } catch (error) {
+            this.aiLease.draft = this.buildAiLeaseDraft(context);
+            this.aiLease.error = `${error.message || 'The AI lease service could not be reached.'} A structured local draft was created instead.`;
+          } finally {
+            this.aiLease.generating = false;
+          }
+        },
+
+        buildAiLeaseDraft(context) {
+          const form = this.aiLease.form;
+          const agreementType = this.titleCase((form.agreementType || 'fixed_term').replace(/_/g, ' '));
+          const clauses = [];
+
+          if (form.includeInspection) {
+            clauses.push('Move-in condition report: The parties should complete and sign a condition report with photos before occupation.');
+          }
+          if (form.includeDepositDeductions) {
+            clauses.push('Deposit deductions: The deposit may be used only for unpaid rent, unpaid agreed charges, or damage beyond fair wear and tear, with evidence provided.');
+          }
+          if (form.includeAccessNotice) {
+            clauses.push('Landlord access: The landlord or authorised representative may access the unit for inspection or repairs after reasonable notice, except in emergencies.');
+          }
+          if (form.includeSubletting) {
+            clauses.push('Subletting: The tenant may not sublet, assign, or transfer occupation without written approval.');
+          }
+          if (form.includeNoiseRules) {
+            clauses.push('Noise and common areas: The tenant must respect neighbours, common areas, building rules, and quiet enjoyment.');
+          }
+          if ((form.customAddons || '').trim()) {
+            clauses.push(`Additional agreed terms: ${form.customAddons.trim()}`);
+          }
+
+          return [
+            'DRAFT LEASE AGREEMENT',
+            '',
+            `Agreement type: ${agreementType}`,
+            `Jurisdiction: ${form.jurisdiction || 'To be confirmed'}`,
+            '',
+            '1. Parties',
+            `Landlord: ${context.landlordName}`,
+            `Tenant: ${context.tenantName}`,
+            '',
+            '2. Premises',
+            `Property: ${context.propertyName}`,
+            `Unit: ${context.unitLabel}`,
+            `Address: ${context.address}`,
+            '',
+            '3. Lease term',
+            `Start date: ${context.startDate}`,
+            `End date: ${context.endDate}`,
+            `Renewal: ${form.renewalTerms || 'Renewal must be agreed in writing.'}`,
+            '',
+            '4. Rent',
+            `Monthly rent: ${context.monthlyRent}`,
+            `Rent due day: Day ${form.rentDueDay || '1'} of each month.`,
+            `Grace period: ${form.gracePeriod || 'No grace period specified.'}`,
+            `Late fees: ${form.lateFee || 'Late fees apply only if allowed by local law and written agreement.'}`,
+            '',
+            '5. Deposit',
+            `Deposit amount: ${context.depositAmount}`,
+            `Deposit status: ${context.depositPaid}`,
+            'The deposit is refundable subject to the tenant meeting lease obligations and the agreed move-out condition process.',
+            '',
+            '6. Utilities and services',
+            form.utilities || 'Utilities and services must be agreed in writing.',
+            '',
+            '7. Maintenance and care of the property',
+            form.maintenance || 'Maintenance responsibilities must be agreed in writing.',
+            '',
+            '8. Use rules',
+            this.aiLeaseChoiceLabel('pets', form.pets),
+            this.aiLeaseChoiceLabel('smoking', form.smoking),
+            this.aiLeaseChoiceLabel('furnishing', form.furnishing),
+            this.aiLeaseChoiceLabel('parking', form.parking),
+            '',
+            '9. Notices',
+            `Ordinary notices should be given at least ${form.noticePeriod || '30 days'} before the intended date, unless local law requires a different period.`,
+            '',
+            '10. Additional clauses',
+            ...(clauses.length ? clauses : ['No additional clauses selected.']),
+            '',
+            '11. Signatures',
+            'Landlord signature: ____________________ Date: __________',
+            'Tenant signature: _____________________ Date: __________',
+            '',
+            'Important: This draft is generated as a starting point only. It should be reviewed against local law before signing.'
+          ].join('\n');
+        },
+
+        async copyAiLeaseDraft() {
+          if (!this.aiLease.draft) await this.generateAiLeaseDraft();
+          if (!this.aiLease.draft) return;
+
+          try {
+            await navigator.clipboard.writeText(this.aiLease.draft);
+            this.aiLease.copied = true;
+            setTimeout(() => {
+              this.aiLease.copied = false;
+            }, 1800);
+          } catch (error) {
+            this.aiLease.error = 'Could not copy automatically. Select the draft text and copy it manually.';
+          }
+        },
+
+        async downloadAiLeaseDraft() {
+          if (!this.aiLease.draft) await this.generateAiLeaseDraft();
+          if (!this.aiLease.draft) return;
+
+          const lease = this.selectedAiLeaseRecord();
+          const tenant = (lease?.tenant?.full_name || 'lease')
+            .replace(/[^a-z0-9]+/gi, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase();
+          const blob = new Blob([this.aiLease.draft], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `mushavo-lease-draft-${tenant || 'lease'}.txt`;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
         },
 
         async addLeaseFromPage() {
