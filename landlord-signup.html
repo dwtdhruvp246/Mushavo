@@ -235,6 +235,7 @@
           if (!data.session || !data.user) {
             this.successMessage = 'Check your email to verify your landlord account, then sign in to finish setup.';
             this.authLoading = false;
+            this.redirectToLogin();
             return;
           }
 
@@ -254,6 +255,12 @@
           this.form = { fullName: '', countryId: '', phone: '', email: '', password: '', confirmPassword: '' };
           this.successMessage = 'Free landlord account created. Sign in to start with your first property and unit.';
           this.authLoading = false;
+          this.redirectToLogin();
+        },
+        redirectToLogin() {
+          window.setTimeout(() => {
+            window.location.href = 'client.html';
+          }, 900);
         }
       };
     }
