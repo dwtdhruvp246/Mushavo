@@ -962,7 +962,7 @@
                       <td class="px-4 py-3">
                         <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="landlordSubscriptionStatusBadgeClass(row)" x-text="landlordPlanStatusLabel(row)"></span>
                       </td>
-                      <td class="px-4 py-3 text-slate-700" x-text="formatDate(row.subscription?.expires_at)"></td>
+                      <td class="px-4 py-3 text-slate-700" x-text="adminLandlordExpiryDisplay(row)"></td>
                       <td class="px-4 py-3">
                         <div class="flex flex-wrap gap-2">
                           <button x-show="!row.archived_at" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openEditLandlord(row)">Edit</button>
@@ -1734,7 +1734,7 @@
                       <td class="px-4 py-3 text-slate-700" x-text="company.staff_count || 0"></td>
                       <td class="px-4 py-3 text-slate-700" x-text="`${company.max_landlords || 0} landlords / ${company.max_properties || 0} properties / ${company.max_staff || 0} staff`"></td>
                       <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="pmcSubscriptionBadgeClass(company)" x-text="pmcSubscriptionLabel(company)"></span></td>
-                      <td class="px-4 py-3 text-slate-700" x-text="formatDate(company.subscription_expires_at)"></td>
+                      <td class="px-4 py-3 text-slate-700" x-text="adminPmcExpiryDisplay(company)"></td>
                       <td class="px-4 py-3">
                         <div class="flex flex-wrap gap-2">
                           <button x-show="!company.archived_at" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openManagementEdit(company)">Edit</button>
@@ -2317,7 +2317,7 @@
                       <td class="px-4 py-3 text-slate-700" x-text="staffRow.staff_max_landlords"></td>
                       <td class="px-4 py-3 text-slate-700" x-text="staffRow.staff_max_properties_per_landlord ?? '-'"></td>
                       <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="staffSubscriptionBadgeClass(staffRow)" x-text="staffSubscriptionLabel(staffRow)"></span></td>
-                      <td class="px-4 py-3 text-slate-700" x-text="staffRow.staff_subscription_expires_at ? formatDate(staffRow.staff_subscription_expires_at) : '-'"></td>
+                      <td class="px-4 py-3 text-slate-700" x-text="adminStaffExpiryDisplay(staffRow)"></td>
                       <td class="px-4 py-3 text-slate-700" x-text="formatDate(staffRow.created_at)"></td>
                       <td class="px-4 py-3">
                         <div class="flex flex-wrap gap-2">
@@ -11686,6 +11686,15 @@
           return this.subscriptionPlanStatusLabel(row?.subscription);
         },
 
+        subscriptionExpiryDisplay(subscription) {
+          if (this.isFreeActiveSubscription(subscription)) return 'Unlimited';
+          return this.formatDate(subscription?.expires_at);
+        },
+
+        adminLandlordExpiryDisplay(row) {
+          return this.subscriptionExpiryDisplay(row?.subscription);
+        },
+
         landlordSubscriptionStatusBadgeClass(row) {
           return this.statusBadgeClass(this.landlordSubscriptionStatus(row));
         },
@@ -11777,6 +11786,21 @@
           return baseLabel;
         },
 
+        adminStaffSubscriptionObject(staffRow) {
+          const planStatus = this.inferIpmPlanStatus(staffRow);
+          const [plan = 'pro'] = String(planStatus || 'pro:active').split(':');
+          return {
+            subscription_plan: plan,
+            status: staffRow?.staff_subscription_status || 'active',
+            expires_at: staffRow?.staff_subscription_expires_at || null,
+            access_suspended_at: staffRow?.access_suspended_at || null
+          };
+        },
+
+        adminStaffExpiryDisplay(staffRow) {
+          return this.subscriptionExpiryDisplay(this.adminStaffSubscriptionObject(staffRow));
+        },
+
         staffSubscriptionBadgeClass(staffRow) {
           const state = this.staffSubscriptionState(staffRow);
           if (staffRow?.access_suspended_at || state.status === 'suspended' || state.expired) return 'bg-red-100 text-red-700';
@@ -11807,6 +11831,10 @@
           if (status === 'pending') return 'Pending';
           if (status === 'archived') return 'Archived';
           return this.subscriptionPlanStatusLabel(this.pmcSubscriptionObject(company));
+        },
+
+        adminPmcExpiryDisplay(company) {
+          return this.subscriptionExpiryDisplay(this.pmcSubscriptionObject(company));
         },
 
         pmcSubscriptionBadgeClass(company) {
@@ -18513,8 +18541,7 @@
         },
 
         accountExpiryDisplay() {
-          if (this.isFreeActiveSubscription(this.account.subscription)) return 'Unlimited';
-          return this.formatDate(this.account.subscription?.expires_at);
+          return this.subscriptionExpiryDisplay(this.account.subscription);
         },
 
         isFreeActiveSubscription(subscription) {
