@@ -5847,7 +5847,7 @@
                       </article>
                       <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                         <p class="text-sm font-medium text-slate-500">Account Expires</p>
-                        <p class="mt-3 text-xl font-bold text-slate-900" x-text="formatDate(account.subscription?.expires_at)"></p>
+                        <p class="mt-3 text-xl font-bold text-slate-900" x-text="accountExpiryDisplay()"></p>
                       </article>
                       <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                         <p class="text-sm font-medium text-slate-500">Days Remaining</p>
@@ -18504,11 +18504,23 @@
         },
 
         accountDaysRemaining() {
+          if (this.isFreeActiveSubscription(this.account.subscription)) return '-';
           if (!this.account.subscription?.expires_at) return '-';
           const days = this.daysUntil(this.account.subscription.expires_at.slice(0, 10));
           if (days < 0) return 'Expired';
           if (days === 0) return 'Expires today';
           return `${days} days`;
+        },
+
+        accountExpiryDisplay() {
+          if (this.isFreeActiveSubscription(this.account.subscription)) return 'Unlimited';
+          return this.formatDate(this.account.subscription?.expires_at);
+        },
+
+        isFreeActiveSubscription(subscription) {
+          const plan = String(subscription?.subscription_plan || '').toLowerCase();
+          const status = String(subscription?.status || '').toLowerCase();
+          return plan === 'free' && status === 'active' && !subscription?.access_suspended_at;
         },
 
         loadSettingsData() {
