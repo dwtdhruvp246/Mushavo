@@ -1822,10 +1822,10 @@
                       <td class="max-w-md px-4 py-3 text-xs text-slate-500"><span class="block max-h-10 overflow-hidden break-words" x-text="formatAuditDetails(row)"></span></td>
                     </tr>
                   </template>
-                  <tr x-show="!admin.audit.loading && auditRows().length === 0">
+                  <tr x-show="admin.audit.loaded && !admin.audit.loading && auditRows().length === 0">
                     <td class="px-4 py-10 text-center text-slate-500" colspan="7">No audit events found.</td>
                   </tr>
-                  <tr x-show="admin.audit.loading">
+                  <tr x-show="!admin.audit.loaded">
                     <td class="px-4 py-10 text-center text-slate-500" colspan="7">Loading audit events...</td>
                   </tr>
                 </tbody>
@@ -1841,8 +1841,8 @@
               <p class="mt-1 text-sm text-slate-600">Control reminders, alerts, escalation checks, and notification templates.</p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="loadAutomationData">Refresh</button>
-              <button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60" type="button" @click="runAutomationChecks" :disabled="admin.automationRunning">
+              <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" type="button" @click="loadAutomationData" :disabled="admin.automationLoading">Refresh</button>
+              <button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60" type="button" @click="runAutomationChecks" :disabled="admin.automationRunning || admin.automationLoading">
                 <span x-show="!admin.automationRunning">Run Checks</span>
                 <span x-show="admin.automationRunning">Running...</span>
               </button>
@@ -1859,15 +1859,15 @@
           <div class="mb-6 grid gap-4 sm:grid-cols-3">
             <article class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
               <p class="text-sm font-semibold text-slate-500">Active Rules</p>
-              <p class="mt-3 text-3xl font-bold text-emerald-700" x-text="admin.automationRules.filter(rule => rule.is_enabled).length"></p>
+              <p class="mt-3 text-3xl font-bold text-emerald-700" x-text="admin.automationLoaded ? admin.automationRules.filter(rule => rule.is_enabled).length : 'Loading...'"></p>
             </article>
             <article class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
               <p class="text-sm font-semibold text-slate-500">Templates</p>
-              <p class="mt-3 text-3xl font-bold text-slate-900" x-text="admin.automationTemplates.length"></p>
+              <p class="mt-3 text-3xl font-bold text-slate-900" x-text="admin.automationLoaded ? admin.automationTemplates.length : 'Loading...'"></p>
             </article>
             <article class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
               <p class="text-sm font-semibold text-slate-500">Last Run</p>
-              <p class="mt-3 text-lg font-bold text-slate-900" x-text="admin.automationRuns[0] ? formatDateTime(admin.automationRuns[0].run_at) : '-'"></p>
+              <p class="mt-3 text-lg font-bold text-slate-900" x-text="admin.automationLoaded ? (admin.automationRuns[0] ? formatDateTime(admin.automationRuns[0].run_at) : '-') : 'Loading...'"></p>
             </article>
           </div>
 
@@ -1926,7 +1926,10 @@
                       </td>
                     </tr>
                   </template>
-                  <tr x-show="admin.automationRules.length === 0">
+                  <tr x-show="!admin.automationLoaded">
+                    <td class="px-4 py-10 text-center text-slate-500" colspan="6">Loading automation rules...</td>
+                  </tr>
+                  <tr x-show="admin.automationLoaded && admin.automationRules.length === 0">
                     <td class="px-4 py-10 text-center text-slate-500" colspan="6">No automation rules found. Run the latest SQL file first.</td>
                   </tr>
                 </tbody>
@@ -1989,7 +1992,10 @@
                       <td class="px-4 py-3 text-xs text-red-600" x-text="run.error_message || '-'"></td>
                     </tr>
                   </template>
-                  <tr x-show="admin.automationRuns.length === 0">
+                  <tr x-show="!admin.automationLoaded">
+                    <td class="px-4 py-10 text-center text-slate-500" colspan="5">Loading automation checks...</td>
+                  </tr>
+                  <tr x-show="admin.automationLoaded && admin.automationRuns.length === 0">
                     <td class="px-4 py-10 text-center text-slate-500" colspan="5">No automation checks have run yet.</td>
                   </tr>
                 </tbody>
@@ -6695,6 +6701,7 @@
           notes: [],
           audit: {
             loading: false,
+            loaded: false,
             error: '',
             items: [],
             search: '',
@@ -6703,6 +6710,8 @@
           automationRules: [],
           automationTemplates: [],
           automationRuns: [],
+          automationLoading: false,
+          automationLoaded: false,
           automationRunning: false,
           automationSavingId: null,
           noteFilters: {
@@ -20179,22 +20188,29 @@
 
         async loadAutomationData() {
           if (!['super_admin', 'admin_staff'].includes(this.profile?.role)) return;
+          this.admin.automationLoading = true;
           this.admin.error = '';
-          const [rulesResult, templatesResult, runsResult] = await Promise.all([
-            supabaseClient.from('automation_rules').select('*').order('rule_key', { ascending: true }),
-            supabaseClient.from('automation_templates').select('*').order('template_key', { ascending: true }),
-            supabaseClient.from('automation_runs').select('*').order('run_at', { ascending: false }).limit(30)
-          ]);
+          try {
+            const [rulesResult, templatesResult, runsResult] = await Promise.all([
+              supabaseClient.from('automation_rules').select('*').order('rule_key', { ascending: true }),
+              supabaseClient.from('automation_templates').select('*').order('template_key', { ascending: true }),
+              supabaseClient.from('automation_runs').select('*').order('run_at', { ascending: false }).limit(30)
+            ]);
 
-          const error = rulesResult.error || templatesResult.error || runsResult.error;
-          if (error) {
-            this.admin.error = this.friendlyDatabaseError(error, 'Automation data could not be loaded.');
-            return;
+            const error = rulesResult.error || templatesResult.error || runsResult.error;
+            if (error) {
+              this.admin.error = this.friendlyDatabaseError(error, 'Automation data could not be loaded.');
+              this.admin.automationLoaded = true;
+              return;
+            }
+
+            this.admin.automationRules = rulesResult.data || [];
+            this.admin.automationTemplates = templatesResult.data || [];
+            this.admin.automationRuns = runsResult.data || [];
+            this.admin.automationLoaded = true;
+          } finally {
+            this.admin.automationLoading = false;
           }
-
-          this.admin.automationRules = rulesResult.data || [];
-          this.admin.automationTemplates = templatesResult.data || [];
-          this.admin.automationRuns = runsResult.data || [];
         },
 
         automationTimingLabel(rule) {
@@ -20312,12 +20328,13 @@
 
         async loadAuditLogs() {
           if (!this.admin.audit) {
-            this.admin.audit = { loading: false, error: '', items: [], search: '', action: 'all' };
+            this.admin.audit = { loading: false, loaded: false, error: '', items: [], search: '', action: 'all' };
           }
 
           if (this.profile?.role !== 'super_admin') {
             this.admin.audit.items = [];
             this.admin.audit.loading = false;
+            this.admin.audit.loaded = true;
             this.admin.audit.error = '';
             return;
           }
@@ -20334,10 +20351,12 @@
           if (error) {
             this.admin.audit.error = this.friendlyDatabaseError(error, 'Audit log could not be loaded.');
             this.admin.audit.loading = false;
+            this.admin.audit.loaded = true;
             return;
           }
 
           this.admin.audit.items = data || [];
+          this.admin.audit.loaded = true;
           this.admin.audit.loading = false;
         },
 
