@@ -974,9 +974,9 @@
                           <button x-show="row.accepted" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openAccountPaymentHistory('landlord', row)">View Payments</button>
                           <button x-show="row.accepted && !row.archived_at && landlordSubscriptionStatus(row) !== 'suspended'" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="suspendLandlord(row)">Suspend</button>
                           <button x-show="row.accepted && !row.archived_at && landlordSubscriptionStatus(row) === 'suspended'" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unsuspendLandlord(row)">Unsuspend</button>
-                          <button x-show="row.accepted && !row.archived_at" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" @click="deleteLandlord(row)">Archive</button>
-                          <button x-show="row.archived_at" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unarchiveLandlord(row)">Unarchive</button>
-                          <button class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="permanentlyDeleteLandlord(row)">Delete</button>
+                          <button x-show="canUseAdminDestructiveActions() && row.accepted && !row.archived_at" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" @click="deleteLandlord(row)">Archive</button>
+                          <button x-show="canUseAdminDestructiveActions() && row.archived_at" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unarchiveLandlord(row)">Unarchive</button>
+                          <button x-show="canUseAdminDestructiveActions()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="permanentlyDeleteLandlord(row)">Delete</button>
                           <button x-show="row.invite_link && !row.accepted" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="copyText(row.invite_link)">Copy Invite</button>
                           <button x-show="row.invite_link && !row.accepted" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openQrDialog(row.invite_link, 'Landlord invite QR code')">QR</button>
                         </div>
@@ -1748,9 +1748,9 @@
                           <button x-show="company.accepted" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openAccountPaymentHistory('management', company)">View Payments</button>
                           <button x-show="company.accepted && !company.archived_at && pmcSubscriptionDisplayStatus(company) !== 'suspended'" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="suspendManagementCompany(company)">Suspend</button>
                           <button x-show="company.accepted && !company.archived_at && pmcSubscriptionDisplayStatus(company) === 'suspended'" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unsuspendManagementCompany(company)">Unsuspend</button>
-                          <button x-show="company.accepted && !company.archived_at" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" @click="archiveManagementCompany(company)">Archive</button>
-                          <button x-show="company.archived_at" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unarchiveManagementCompany(company)">Unarchive</button>
-                          <button class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="permanentlyDeleteManagementCompany(company)">Delete</button>
+                          <button x-show="canUseAdminDestructiveActions() && company.accepted && !company.archived_at" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" @click="archiveManagementCompany(company)">Archive</button>
+                          <button x-show="canUseAdminDestructiveActions() && company.archived_at" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unarchiveManagementCompany(company)">Unarchive</button>
+                          <button x-show="canUseAdminDestructiveActions()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="permanentlyDeleteManagementCompany(company)">Delete</button>
                           <button x-show="company.invite_link && !company.accepted" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="copyText(company.invite_link)">Copy Invite</button>
                           <button x-show="company.invite_link && !company.accepted" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openQrDialog(company.invite_link, 'PMC invite QR code')">QR</button>
                         </div>
@@ -2336,9 +2336,9 @@
                           <button x-show="staffRow.accepted !== false && !staffRow.archived_at && staffSubscriptionDisplayStatus(staffRow) === 'suspended'" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unsuspendAdminStaff(staffRow)">Unsuspend</button>
                           <button x-show="staffRow.accepted === false && staffRow.invite_link" class="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="copyText(staffRow.invite_link)">Copy Link</button>
                           <button x-show="staffRow.accepted === false && staffRow.invite_link" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="openQrDialog(staffRow.invite_link, 'IPM invite QR code')">QR</button>
-                          <button x-show="staffRow.accepted !== false && !staffRow.archived_at" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" @click="deleteAdminStaff(staffRow)">Archive</button>
-                          <button x-show="staffRow.accepted !== false && staffRow.archived_at" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unarchiveAdminStaff(staffRow)">Unarchive</button>
-                          <button class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="permanentlyDeleteAdminStaff(staffRow)">Delete</button>
+                          <button x-show="canUseAdminDestructiveActions() && staffRow.accepted !== false && !staffRow.archived_at" class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" type="button" @click="deleteAdminStaff(staffRow)">Archive</button>
+                          <button x-show="canUseAdminDestructiveActions() && staffRow.accepted !== false && staffRow.archived_at" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="unarchiveAdminStaff(staffRow)">Unarchive</button>
+                          <button x-show="canUseAdminDestructiveActions()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100" type="button" @click="permanentlyDeleteAdminStaff(staffRow)">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -10851,6 +10851,10 @@
 
         async archiveManagementCompany(company) {
           if (!company?.id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Archive PMC',
             message: `Archive ${company.company_name}? Their historical records will stay saved.`,
@@ -10900,6 +10904,10 @@
 
         async unarchiveManagementCompany(company) {
           if (!company?.id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Unarchive PMC',
             message: `Restore ${company.company_name}?`,
@@ -10927,6 +10935,11 @@
         },
 
         async permanentlyDeleteManagementCompany(company) {
+          if (!company?.id && !company?.invite_id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Permanently delete PMC',
             message: `Permanently delete ${company.company_name || company.email}? This removes the leader account, company access, and linked PMC staff records. This cannot be undone.`,
@@ -11093,6 +11106,10 @@
 
         async deleteAdminStaff(staffRow) {
           if (!staffRow?.id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Archive IPM account',
             message: `Archive ${staffRow.full_name || staffRow.email}? They will no longer appear as an active IPM account, but finance history will stay saved.`,
@@ -11125,6 +11142,10 @@
 
         async unarchiveAdminStaff(staffRow) {
           if (!staffRow?.id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Unarchive IPM account',
             message: `Restore ${staffRow.full_name || staffRow.email}?`,
@@ -11153,6 +11174,10 @@
 
         async permanentlyDeleteAdminStaff(staffRow) {
           if (!staffRow?.id && !staffRow?.invite_id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: staffRow.accepted === false ? 'Delete IPM invite' : 'Permanently delete IPM',
             message: staffRow.accepted === false
@@ -11549,6 +11574,11 @@
         },
 
         async deleteLandlord(row) {
+          if (!row?.profile_id && !row?.invite_id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Archive landlord',
             message: `Archive ${row.full_name}? They will no longer appear as an active landlord, but their payment, lease, and property history will stay saved.`,
@@ -11574,6 +11604,10 @@
 
         async unarchiveLandlord(row) {
           if (!row?.profile_id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Unarchive landlord',
             message: `Restore ${row.full_name || row.email} to the active landlord list?`,
@@ -11598,6 +11632,11 @@
         },
 
         async permanentlyDeleteLandlord(row) {
+          if (!row?.profile_id && !row?.invite_id) return;
+          if (!this.canUseAdminDestructiveActions()) {
+            this.blockAdminStaffDestructiveAction();
+            return;
+          }
           const confirmed = await this.requestConfirm({
             title: 'Permanently delete landlord',
             message: `Permanently delete ${row.full_name || row.email}? This removes the account and linked operational records. This cannot be undone.`,
@@ -12613,6 +12652,17 @@
 
           suspendedAdminStaffMessage() {
             return 'Your account is suspended. Please contact the admin.';
+          },
+
+          canUseAdminDestructiveActions() {
+            return this.profile?.role === 'super_admin';
+          },
+
+          blockAdminStaffDestructiveAction() {
+            const message = 'Only the main admin can archive or delete landlord, IPM, or PMC accounts.';
+            this.admin.message = '';
+            this.admin.error = message;
+            this.errorMessage = message;
           },
 
           isSuspendedProfile(profile) {
