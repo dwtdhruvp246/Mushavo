@@ -738,7 +738,11 @@
             <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700" x-text="admin.message"></div>
           </template>
 
-          <section class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
+          <div class="mb-5 flex justify-end">
+            <button x-show="!admin.showNoteForm && !admin.noteForm.id" class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="admin.showNoteForm = true">Add Note</button>
+          </div>
+
+          <section x-show="admin.showNoteForm || admin.noteForm.id" x-cloak class="rounded-2xl border border-white/70 bg-white/75 p-5 shadow-soft backdrop-blur-xl">
             <h2 class="text-lg font-bold text-slate-900" x-text="admin.noteForm.id ? 'Edit Note' : 'New Note'"></h2>
             <div class="mt-4 grid gap-4 lg:grid-cols-2">
               <label class="block text-sm font-medium text-slate-700">Title
@@ -768,7 +772,7 @@
               <textarea class="mt-2 min-h-28 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100" x-model="admin.noteForm.body"></textarea>
             </label>
             <div class="mt-5 flex flex-wrap justify-end gap-3">
-              <button x-show="admin.noteForm.id" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="resetAdminNoteForm">Cancel Edit</button>
+              <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="resetAdminNoteForm(); admin.showNoteForm = false" x-text="admin.noteForm.id ? 'Cancel Edit' : 'Cancel'"></button>
               <button class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="saveAdminNote" :disabled="admin.saving" x-text="admin.noteForm.id ? 'Save Note' : 'Add Note'"></button>
             </div>
           </section>
@@ -6706,6 +6710,7 @@
             status: '',
             assignedTo: ''
           },
+          showNoteForm: false,
           noteForm: {
             id: '',
             title: '',
@@ -9040,6 +9045,7 @@
         editAdminNote(note) {
           this.admin.message = '';
           this.admin.error = '';
+          this.admin.showNoteForm = true;
           this.admin.noteForm = {
             id: note.id,
             title: note.title || '',
@@ -9121,6 +9127,7 @@
             this.admin.message = 'Note added.';
           }
           this.resetAdminNoteForm();
+          this.admin.showNoteForm = false;
         },
 
         async toggleAdminNoteDone(note) {
