@@ -6524,6 +6524,7 @@
         loadedDataSections: {},
         authError: '',
         successMessage: '',
+        pageFeedbackResetRegistered: false,
         currentShell: 'login',
         currentPage: 'dashboard',
         pageTitle: 'Dashboard',
@@ -7328,8 +7329,41 @@
           }
         },
 
+        clearTransientFeedback() {
+          const feedbackKeys = new Set(['successMessage', 'errorMessage', 'message', 'error', 'submitError', 'formError']);
+          const skippedScopes = new Set(['confirmDialog', 'qrDialog']);
+
+          const clearScope = (scope, depth = 0) => {
+            if (!scope || typeof scope !== 'object' || Array.isArray(scope) || depth > 4) return;
+
+            Object.keys(scope).forEach((key) => {
+              const value = scope[key];
+              if (feedbackKeys.has(key) && typeof value === 'string') {
+                scope[key] = '';
+                return;
+              }
+
+              if (!skippedScopes.has(key) && value && typeof value === 'object' && !Array.isArray(value)) {
+                clearScope(value, depth + 1);
+              }
+            });
+          };
+
+          clearScope(this);
+        },
+
+        registerPageFeedbackReset() {
+          if (this.pageFeedbackResetRegistered || typeof this.$watch !== 'function') return;
+          this.pageFeedbackResetRegistered = true;
+          this.$watch('currentPage', (newPage, oldPage) => {
+            if (!oldPage || newPage === oldPage) return;
+            this.clearTransientFeedback();
+          });
+        },
+
         async init() {
           try {
+            this.registerPageFeedbackReset();
             this.enableTableSorting();
             this.successMessage = sessionStorage.getItem('mushavo_success') || '';
             sessionStorage.removeItem('mushavo_success');
