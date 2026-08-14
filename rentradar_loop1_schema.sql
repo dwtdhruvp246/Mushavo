@@ -13366,14 +13366,6 @@ using (
     where p.id = auth.uid()
       and p.role = 'super_admin'
   )
-  or exists (
-    select 1
-    from public.profiles p
-    left join public.admin_staff_country_assignments asca on asca.staff_profile_id = p.id
-    where p.id = auth.uid()
-      and p.role = 'admin_staff'
-      and (audit_logs.country_id is null or asca.country_id = audit_logs.country_id)
-  )
 );
 
 grant select on public.audit_logs to authenticated;

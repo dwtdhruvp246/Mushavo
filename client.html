@@ -1763,7 +1763,7 @@
           </section>
         </section>
 
-        <section x-show="currentPage === 'admin-audit'" id="super-admin-audit" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[1800px]">
+        <section x-show="currentPage === 'admin-audit' && profile?.role === 'super_admin'" id="super-admin-audit" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[1800px]">
           <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 class="text-2xl font-bold text-slate-900">Audit Log</h1>
@@ -7811,8 +7811,9 @@
           if (!page) return false;
 
           if (this.currentShell === 'super_admin') {
-            const pages = ['admin-dashboard', 'landlord-management', 'admin-finance', 'admin-pricing', 'admin-tenants', 'admin-enquiries', 'admin-leads', 'admin-notes', 'admin-audit', 'admin-automation', 'admin-staff', 'admin-management'];
+            const pages = ['admin-dashboard', 'landlord-management', 'admin-finance', 'admin-pricing', 'admin-tenants', 'admin-enquiries', 'admin-leads', 'admin-notes', 'admin-automation', 'admin-staff', 'admin-management'];
             if (this.profile?.role === 'super_admin') pages.push('admin-team');
+            if (this.profile?.role === 'super_admin') pages.push('admin-audit');
             return pages.includes(page);
           }
 
@@ -12005,7 +12006,7 @@
             { page: 'admin-pricing', label: 'Pricing', icon: 'card', visible: this.profile?.role === 'super_admin' },
             { page: 'admin-leads', label: 'Leads', icon: 'users', visible: true },
             { page: 'admin-automation', label: 'Automation', icon: 'settings', visible: true },
-            { page: 'admin-audit', label: 'Audit', icon: 'file', visible: true }
+            { page: 'admin-audit', label: 'Audit', icon: 'file', visible: this.profile?.role === 'super_admin' }
           ];
 
           return items.filter(item => item.visible);
@@ -20234,6 +20235,13 @@
         async loadAuditLogs() {
           if (!this.admin.audit) {
             this.admin.audit = { loading: false, error: '', items: [], search: '', action: 'all' };
+          }
+
+          if (this.profile?.role !== 'super_admin') {
+            this.admin.audit.items = [];
+            this.admin.audit.loading = false;
+            this.admin.audit.error = '';
+            return;
           }
 
           this.admin.audit.loading = true;
