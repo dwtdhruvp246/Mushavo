@@ -12607,15 +12607,29 @@
           return 'Your Mushavo subscription has expired, and your account access is currently paused. Your data is still safely stored.\n\nPlease contact support to renew your subscription and restore access.';
         },
 
-        accountSuspendedMessage() {
-          return 'Your Mushavo account has been suspended by an administrator.\n\nYour data is still safely stored. Please contact support if you believe this was a mistake or to restore access.';
-        },
+          accountSuspendedMessage() {
+            return 'Your Mushavo account has been suspended by an administrator.\n\nYour data is still safely stored. Please contact support if you believe this was a mistake or to restore access.';
+          },
 
-        markSubscriptionPaused() {
-          this.accessPaused = true;
-          this.suspendedTitle = 'Subscription Expired';
-          this.suspendedMessage = this.subscriptionExpiredMessage();
-        },
+          suspendedAdminStaffMessage() {
+            return 'Your account is suspended. Please contact the admin.';
+          },
+
+          isSuspendedProfile(profile) {
+            const statusValues = [
+              profile?.account_status,
+              profile?.subscription_status,
+              profile?.staff_subscription_status,
+              profile?.management_subscription_status
+            ].map((value) => String(value || '').trim().toLowerCase());
+            return Boolean(profile?.access_suspended_at) || statusValues.includes('suspended');
+          },
+
+          markSubscriptionPaused() {
+            this.accessPaused = true;
+            this.suspendedTitle = 'Subscription Expired';
+            this.suspendedMessage = this.subscriptionExpiredMessage();
+          },
 
         markAccountSuspended() {
           this.accessPaused = true;
@@ -19259,8 +19273,14 @@
           } else if (profile.role === 'management_staff') {
             hasAccess = await this.loadManagementStaffPermissions(profile.id);
           } else if (profile.role === 'admin_staff') {
-            hasAccess = profile.staff_subscription_status !== 'suspended'
-              && Boolean(this.normalizeCountryIds(profile.country_ids || (profile.country_id ? [profile.country_id] : [])).length);
+            if (this.isSuspendedProfile(profile)) {
+              this.accessPaused = true;
+              this.suspendedTitle = 'Account Suspended';
+              this.suspendedMessage = this.suspendedAdminStaffMessage();
+              hasAccess = false;
+            } else {
+              hasAccess = Boolean(this.normalizeCountryIds(profile.country_ids || (profile.country_id ? [profile.country_id] : [])).length);
+            }
           }
 
           if (!hasAccess) {
@@ -19491,9 +19511,9 @@
           this.profile = profile;
 
           if (profile.role === 'super_admin' || profile.role === 'admin_staff') {
-            if (profile.role === 'admin_staff' && profile.staff_subscription_status === 'suspended') {
+            if (profile.role === 'admin_staff' && this.isSuspendedProfile(profile)) {
               await supabaseClient.auth.signOut();
-              this.authError = 'Your admin staff account is suspended. Please contact the Mushavo administrator.';
+              this.authError = this.suspendedAdminStaffMessage();
               this.currentShell = 'login';
               this.booting = false;
               return;
@@ -19645,6 +19665,14 @@
             this.booting = false;
             this.startRealtimeSync();
             await this.refreshCurrentPage();
+            return;
+          }
+
+          if (this.isSuspendedProfile(profile)) {
+            await supabaseClient.auth.signOut();
+            this.authError = this.suspendedAdminStaffMessage();
+            this.currentShell = 'login';
+            this.booting = false;
             return;
           }
 
