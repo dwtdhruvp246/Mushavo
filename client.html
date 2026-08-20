@@ -3215,6 +3215,7 @@
                         <p class="mt-1 text-sm text-slate-500">Manage only the units linked to this property.</p>
                       </div>
                       <div class="flex flex-wrap gap-2">
+                        <button x-show="canAddUnits()" class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="propertyUnit.showAddUnitForm = !propertyUnit.showAddUnitForm" x-text="propertyUnit.showAddUnitForm ? 'Cancel' : 'Add Unit'"></button>
                         <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="refreshCurrentPage">Refresh</button>
                       </div>
                     </div>
@@ -3223,7 +3224,7 @@
                       <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" x-text="propertyUnit.error"></div>
                     </template>
 
-                    <form x-show="canAddUnits()" class="grid gap-3 lg:grid-cols-[1fr_0.8fr_0.8fr_1fr_auto]" @submit.prevent="addUnit">
+                    <form x-show="canAddUnits() && propertyUnit.showAddUnitForm" x-transition class="grid gap-3 lg:grid-cols-[1fr_0.8fr_0.8fr_1fr_auto]" @submit.prevent="addUnit">
                       <label class="block">
                         <span class="mb-2 block text-sm font-medium text-slate-700">Unit number</span>
                         <input class="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" type="text" x-model.trim="propertyUnit.unitForm.unitNumber" required>
@@ -6922,6 +6923,7 @@
             sort: 'property',
             landlordId: ''
           },
+          showAddUnitForm: false,
           unitForm: {
             propertyId: '',
             unitNumber: '',
@@ -13528,7 +13530,10 @@
             return;
           }
 
-          if (this.propertyUnit.selectedPropertyId === property.id) this.propertyUnit.selectedPropertyId = '';
+          if (this.propertyUnit.selectedPropertyId === property.id) {
+            this.propertyUnit.selectedPropertyId = '';
+            this.propertyUnit.showAddUnitForm = false;
+          }
           if (this.propertyUnit.unitForm.propertyId === property.id) this.propertyUnit.unitForm.propertyId = '';
           if (this.propertyUnit.selectedUnit?.property_id === property.id) this.propertyUnit.selectedUnit = null;
           await this.loadPropertyUnitData();
@@ -13574,6 +13579,7 @@
             bathrooms: 1,
             monthlyRent: 0
           };
+          this.propertyUnit.showAddUnitForm = false;
           this.propertyUnit.saving = false;
           await this.loadPropertyUnitData();
           await this.loadDashboardData();
@@ -13700,8 +13706,10 @@
             this.propertyUnit.error = 'You do not have permission to view units.';
             return;
           }
+          const isSwitchingProperty = this.propertyUnit.selectedPropertyId !== propertyId;
           this.propertyUnit.selectedPropertyId = propertyId;
           this.propertyUnit.unitForm.propertyId = propertyId;
+          if (isSwitchingProperty) this.propertyUnit.showAddUnitForm = false;
           if (this.propertyUnit.selectedUnit?.property_id !== propertyId) {
             this.propertyUnit.selectedUnit = null;
             this.propertyUnit.currentLease = null;
@@ -13721,6 +13729,7 @@
         closePropertyUnits() {
           this.propertyUnit.selectedPropertyId = '';
           this.propertyUnit.unitForm.propertyId = '';
+          this.propertyUnit.showAddUnitForm = false;
           this.propertyUnit.selectedUnit = null;
           this.propertyUnit.currentLease = null;
           this.propertyUnit.detailMode = '';
