@@ -244,6 +244,7 @@
           if (!data.session || !data.user) {
             this.successMessage = 'Check your email to verify your tenant account, then sign in to finish setup.';
             this.authLoading = false;
+            this.redirectToLogin();
             return;
           }
 
@@ -264,6 +265,12 @@
           this.form = { fullName: '', countryId: '', phone: '', email: '', idNumber: '', password: '', confirmPassword: '' };
           this.successMessage = 'Tenant account created. Sign in and accept landlord requests from Notifications.';
           this.authLoading = false;
+          this.redirectToLogin();
+        },
+        redirectToLogin() {
+          window.setTimeout(() => {
+            window.location.href = 'client.html';
+          }, 900);
         }
       };
     }
