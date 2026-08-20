@@ -3298,9 +3298,9 @@
                       <div class="flex flex-wrap gap-2">
                         <button x-show="canEditUnits()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="startEditSelectedUnit">Edit Unit</button>
                         <button x-show="canViewFinancials()" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="prepareUnitPayment">Log Payment</button>
-                        <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_in')">Move-in Inspection</button>
-                        <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('routine')">Routine Inspection</button>
-                        <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_out')">Move-out Inspection</button>
+                        <button x-show="canManageInspections() && canCreateInspectionForSelectedUnit()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_in')">Move-in Inspection</button>
+                        <button x-show="canManageInspections() && canCreateInspectionForSelectedUnit()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('routine')">Routine Inspection</button>
+                        <button x-show="canManageInspections() && canCreateInspectionForSelectedUnit()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_out')">Move-out Inspection</button>
                         <button x-show="canAssignTenantToUnit()" class="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="prepareAssignTenant(propertyUnit.selectedUnit)">Change Tenant</button>
                         <button x-show="canMarkUnitsVacant() && propertyUnit.selectedUnit?.status === 'occupied'" class="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-yellow-100" type="button" @click="markUnitVacant(propertyUnit.selectedUnit)">Mark Vacant</button>
                         <button x-show="canArchiveUnits()" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100" type="button" @click="deleteUnit(propertyUnit.selectedUnit)">Archive Unit</button>
@@ -3505,9 +3505,9 @@
                           <p class="mt-1 text-xs text-slate-500">Move-in, routine, move-out, evidence, signatures, and deposit deductions.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
-                          <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_in')">Move-in</button>
-                          <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('routine')">Routine</button>
-                          <button x-show="canManageInspections()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_out')">Move-out</button>
+                          <button x-show="canManageInspections() && canCreateInspectionForSelectedUnit()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_in')">Move-in</button>
+                          <button x-show="canManageInspections() && canCreateInspectionForSelectedUnit()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('routine')">Routine</button>
+                          <button x-show="canManageInspections() && canCreateInspectionForSelectedUnit()" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" type="button" @click="prepareInspection('move_out')">Move-out</button>
                         </div>
                       </div>
                       <template x-if="propertyUnit.inspections.length === 0">
@@ -12904,6 +12904,25 @@
           );
         },
 
+        currentInspectionLease() {
+          const lease = this.propertyUnit?.currentLease;
+          if (!lease || !lease.id) return null;
+          const tenantId = lease.tenant_id || lease.tenantId || lease.tenant?.id || lease.tenants?.id;
+          if (!tenantId) return null;
+          const status = String(lease.status || 'active').toLowerCase();
+          if (status && !['active', 'current'].includes(status)) return null;
+          if (lease.archived_at || lease.deleted_at || lease.terminated_at) return null;
+          return lease;
+        },
+
+        canCreateInspectionForSelectedUnit() {
+          return Boolean(this.currentInspectionLease());
+        },
+
+        inspectionLeaseRequiredMessage() {
+          return 'Assign a tenant with an active lease before creating inspections for this unit.';
+        },
+
         defaultInspectionForm(type = 'routine') {
           return {
             id: '',
@@ -12928,6 +12947,10 @@
         prepareInspection(type = 'routine') {
           if (!this.propertyUnit.selectedUnit) {
             this.propertyUnit.error = 'Open a unit before creating an inspection.';
+            return;
+          }
+          if (!this.canCreateInspectionForSelectedUnit()) {
+            this.propertyUnit.error = this.inspectionLeaseRequiredMessage();
             return;
           }
           this.propertyUnit.error = '';
@@ -13138,6 +13161,10 @@
         async saveInspection() {
           if (!this.propertyUnit.selectedUnit || !this.canManageInspections()) return;
           const form = this.propertyUnit.inspectionForm;
+          if (!(form && form.id) && !this.canCreateInspectionForSelectedUnit()) {
+            this.propertyUnit.error = this.inspectionLeaseRequiredMessage();
+            return;
+          }
           const roomConditions = this.cleanInspectionRoomConditions(form.roomConditions);
           if (!roomConditions.length) {
             this.propertyUnit.error = 'Add at least one room condition before saving an inspection.';
@@ -13146,7 +13173,7 @@
           this.propertyUnit.saving = true;
           this.propertyUnit.error = '';
           try {
-            const lease = this.propertyUnit.currentLease || {};
+            const lease = this.currentInspectionLease() || this.propertyUnit.currentLease || {};
             const payload = {
               landlord_id: this.currentLandlordId(),
               property_id: this.propertyUnit.selectedUnit.property_id,
