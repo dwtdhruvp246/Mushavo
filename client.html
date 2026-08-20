@@ -12103,8 +12103,31 @@
           ];
         },
 
+        isFreeActiveLandlordAccount() {
+          if (this.profile?.role !== 'landlord') return false;
+          const sources = [
+            this.landlordSubscription,
+            this.subscription,
+            this.profile?.subscription,
+            this.profile
+          ].filter(Boolean);
+
+          return sources.some((source) => {
+            const plan = String(source.plan || source.plan_name || source.subscription_plan || source.subscriptionPlan || '').toLowerCase().trim();
+            const status = String(source.status || source.account_status || source.subscription_status || source.subscriptionStatus || '').toLowerCase().trim();
+            const planStatus = String(source.plan_status || source.planStatus || source.status_label || source.subscription_label || source.subscriptionLabel || '').toLowerCase().trim();
+            return planStatus === 'active - free'
+              || planStatus === 'free - active'
+              || (plan === 'free' && status === 'active')
+              || (plan === 'active' && status === 'free');
+          });
+        },
+
         canShowAppPage(page) {
-          if (this.profile?.role === 'landlord') return true;
+          if (this.profile?.role === 'landlord') {
+            if (page === 'leads' && this.isFreeActiveLandlordAccount()) return false;
+            return true;
+          }
           if (!['staff', 'management_leader', 'management_staff'].includes(this.profile?.role)) return false;
 
           const permissionMap = {
@@ -20068,11 +20091,13 @@
         },
 
         canPublishListings() {
+          if (this.isFreeActiveLandlordAccount()) return false;
           if (['landlord', 'super_admin', 'admin_staff'].includes(this.profile?.role)) return true;
           return Boolean(this.permissions?.canPublishListings || this.permissions?.can_publish_listings);
         },
 
         canManageLeads() {
+          if (this.isFreeActiveLandlordAccount()) return false;
           if (['landlord', 'super_admin', 'admin_staff'].includes(this.profile?.role)) return true;
           return Boolean(this.permissions?.canManageLeads || this.permissions?.can_manage_leads);
         },
@@ -20535,6 +20560,9 @@
         },
 
         async navigate(page) {
+          if (page === 'leads' && this.isFreeActiveLandlordAccount()) {
+            page = 'dashboard';
+          }
           if (!this.isPageAllowed(page)) return;
 
           this.currentPage = page;
