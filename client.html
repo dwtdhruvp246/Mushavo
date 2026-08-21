@@ -612,7 +612,7 @@
                     class="flex w-full items-center gap-3 rounded-lg border-l-4 px-3 py-2.5 text-left text-sm font-semibold transition"
                     type="button"
                     :class="currentPage === item.page ? 'border-emerald-500 bg-emerald-50 text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
-                    @click="navigate(item.page)">
+                    @click.prevent.stop="navigate(item.page, $event)">
                     <span class="flex h-5 w-5 items-center justify-center" x-html="navIcon(item.icon)"></span>
                     <span x-text="item.label"></span>
                   </button>
@@ -657,7 +657,7 @@
                   <h2 class="text-base font-bold text-slate-900">Finance Snapshot</h2>
                   <p class="mt-1 text-xs text-slate-500">Latest platform payments recorded.</p>
                 </div>
-                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('admin-finance')">View Finance</button>
+                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('admin-finance', $event)">View Finance</button>
               </div>
               <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -680,7 +680,7 @@
                   <h2 class="text-base font-bold text-slate-900">Enquiries</h2>
                   <p class="mt-1 text-xs text-slate-500">Newest website enquiries by country.</p>
                 </div>
-                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('admin-enquiries')">View Enquiries</button>
+                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('admin-enquiries', $event)">View Enquiries</button>
               </div>
               <div class="divide-y divide-slate-100">
                 <template x-for="enquiry in adminRecentEnquiries(5)" :key="enquiry.id">
@@ -704,7 +704,7 @@
                   <h2 class="text-base font-bold text-slate-900">Notes</h2>
                   <p class="mt-1 text-sm text-slate-500" x-text="`${adminNoteSummary().open} open, ${adminNoteSummary().done} done`"></p>
                 </div>
-                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('admin-notes')">Open Notes</button>
+                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('admin-notes', $event)">Open Notes</button>
               </div>
               <p class="mt-5 text-3xl font-bold text-slate-900" x-text="adminNoteSummary().assigned"></p>
               <p class="mt-1 text-xs text-slate-500">notes assigned to you</p>
@@ -2807,7 +2807,7 @@
                   class="flex w-full items-center gap-3 rounded-lg border-l-4 px-3 py-2.5 text-left text-sm font-semibold transition"
                   type="button"
                   :class="currentPage === item.page ? 'border-emerald-500 bg-slate-50 text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
-                  @click="navigate(item.page)">
+                  @click.prevent.stop="navigate(item.page, $event)">
                   <span class="flex h-5 w-5 items-center justify-center" x-html="navIcon(item.icon)"></span>
                   <span x-text="item.label"></span>
                 </button>
@@ -2841,7 +2841,7 @@
                       class="flex w-full items-center gap-3 rounded-lg border-l-4 px-3 py-2.5 text-left text-sm font-semibold transition"
                       type="button"
                       :class="currentPage === item.page ? 'border-emerald-500 bg-slate-50 text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
-                      @click="navigate(item.page)">
+                      @click.prevent.stop="navigate(item.page, $event)">
                       <span class="flex h-5 w-5 items-center justify-center" x-html="navIcon(item.icon)"></span>
                       <span x-text="item.label"></span>
                     </button>
@@ -2882,7 +2882,7 @@
                 </div>
 
                 <div class="flex shrink-0 items-center gap-2 lg:hidden">
-                  <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click="navigate('notifications')" aria-label="Notifications">
+                  <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('notifications', $event)" aria-label="Notifications">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M15 17H9m9-2v-4a6 6 0 1 0-12 0v4l-2 2h16l-2-2ZM10 20h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
                     </svg>
@@ -2904,15 +2904,15 @@
                         <option :value="relationship.landlord_id" x-text="relationship.landlord?.full_name || relationship.landlord?.email || 'Landlord'"></option>
                       </template>
                     </select>
-                    <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('management-landlords')">Find Landlord</button>
+                    <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('management-landlords', $event)">Find Landlord</button>
                   </div>
                   <button
                     class="hidden max-w-44 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:block"
                     type="button"
-                    @click="navigate(['landlord', 'management_leader'].includes(profile?.role) || (profile?.role === 'staff' && profile?.staff_type === 'freelancer') ? 'my-account' : 'settings')"
+                    @click.prevent.stop="navigate(['landlord', 'management_leader'].includes(profile?.role) || (profile?.role === 'staff' && profile?.staff_type === 'freelancer') ? 'my-account' : 'settings', $event)"
                     x-text="profile?.full_name || 'Account'">
                   </button>
-                  <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click="navigate('notifications')" aria-label="Notifications">
+                  <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('notifications', $event)" aria-label="Notifications">
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <path d="M15 17H9m9-2v-4a6 6 0 1 0-12 0v4l-2 2h16l-2-2ZM10 20h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
                     </svg>
@@ -2941,7 +2941,7 @@
                         <h1 class="text-xl font-bold text-slate-900">Find your first landlord</h1>
                         <p class="mt-1 text-sm text-slate-600">Search by landlord email from the Landlords page. Existing landlords can approve access, and new landlords can be invited to the free plan.</p>
                       </div>
-                      <button class="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click="navigate('management-landlords')">Open Landlords</button>
+                      <button class="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600" type="button" @click.prevent.stop="navigate('management-landlords', $event)">Open Landlords</button>
                     </div>
                   </section>
 
@@ -5932,7 +5932,7 @@
               </div>
             </div>
             <div class="flex shrink-0 items-center gap-2 md:hidden">
-              <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click="navigate('tenant-notifications')" aria-label="Notifications">
+              <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('tenant-notifications', $event)" aria-label="Notifications">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M15 17H9m9-2v-4a6 6 0 1 0-12 0v4l-2 2h16l-2-2ZM10 20h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
@@ -5946,7 +5946,7 @@
             </div>
             <div class="hidden min-w-0 flex-wrap items-center justify-end gap-2 md:flex">
               <span class="hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 sm:inline-flex" x-text="tenant.tenantRow?.full_name || profile?.full_name || 'Tenant'"></span>
-              <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click="navigate('tenant-notifications')" aria-label="Notifications">
+              <button class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('tenant-notifications', $event)" aria-label="Notifications">
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M15 17H9m9-2v-4a6 6 0 1 0-12 0v4l-2 2h16l-2-2ZM10 20h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
@@ -5957,7 +5957,7 @@
           </div>
           <nav class="hidden gap-1 overflow-x-auto px-3 pb-3 md:flex">
             <template x-for="item in tenantNavItems()" :key="item.page">
-              <button class="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === item.page ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click="navigate(item.page)">
+              <button class="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold" type="button" :class="currentPage === item.page ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'" @click.prevent.stop="navigate(item.page, $event)">
                 <span class="flex h-4 w-4 items-center justify-center" x-html="navIcon(item.icon)"></span>
                 <span x-text="item.label"></span>
               </button>
@@ -5990,7 +5990,7 @@
                     class="flex w-full items-center gap-3 rounded-lg border-l-4 px-3 py-2.5 text-left text-sm font-semibold transition"
                     type="button"
                     :class="currentPage === item.page ? 'border-emerald-500 bg-emerald-50 text-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
-                    @click="navigate(item.page)">
+                    @click.prevent.stop="navigate(item.page, $event)">
                     <span class="flex h-5 w-5 items-center justify-center" x-html="navIcon(item.icon)"></span>
                     <span x-text="item.label"></span>
                   </button>
@@ -6128,7 +6128,7 @@
               <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-soft">
                 <div class="mb-4 flex items-center justify-between gap-4">
                   <h2 class="text-sm font-semibold text-slate-900">Recent Maintenance</h2>
-                  <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('tenant-maintenance')">View All</button>
+                  <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('tenant-maintenance', $event)">View All</button>
                 </div>
                 <div class="divide-y divide-slate-200">
                   <template x-if="tenant.maintenanceRequests.slice(0, 3).length === 0">
@@ -6147,8 +6147,8 @@
               </section>
 
               <section class="grid gap-3 sm:grid-cols-2">
-                <button class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click="navigate('tenant-payments')">Submit Payment</button>
-                <button class="rounded-xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click="navigate('tenant-maintenance')">New Maintenance Request</button>
+                <button class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-100" type="button" @click.prevent.stop="navigate('tenant-payments', $event)">Submit Payment</button>
+                <button class="rounded-xl border border-slate-200 bg-white px-4 py-4 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" @click.prevent.stop="navigate('tenant-maintenance', $event)">New Maintenance Request</button>
               </section>
             </div>
           </template>
@@ -6528,6 +6528,7 @@
         pageFeedbackResetRegistered: false,
         currentShell: 'login',
         currentPage: 'dashboard',
+        navigationToken: 0,
         pageTitle: 'Dashboard',
         accessPaused: false,
         suspendedTitle: 'Subscription Expired',
@@ -7832,13 +7833,20 @@
           }
         },
 
+        normalizeRoutePage(page) {
+          if (!page) return '';
+          const normalizedPage = String(page).trim();
+          return normalizedPage === 'units' || normalizedPage === 'tenants' ? 'properties' : normalizedPage;
+        },
+
         storeCurrentPage(page = this.currentPage) {
-          if (!page || this.currentShell === 'login' || this.currentShell === 'invite' || this.currentShell === 'suspended') return;
+          const normalizedPage = this.normalizeRoutePage(page);
+          if (!normalizedPage || this.currentShell === 'login' || this.currentShell === 'invite' || this.currentShell === 'suspended') return;
 
           const key = this.routeStorageKey();
           try {
-            window.localStorage.setItem(key, page);
-            window.sessionStorage.setItem(key, page);
+            window.localStorage.setItem(key, normalizedPage);
+            window.sessionStorage.setItem(key, normalizedPage);
           } catch (error) {
           }
         },
@@ -7878,14 +7886,18 @@
         },
 
         restorePage(defaultPage) {
+          const currentPage = this.normalizeRoutePage(this.currentPage);
+          if (this.isPageAllowed(currentPage)) return currentPage;
+
           const storedPage = this.readStoredPage();
-          const normalizedPage = storedPage === 'units' || storedPage === 'tenants' ? 'properties' : storedPage;
+          const normalizedPage = this.normalizeRoutePage(storedPage);
           return this.isPageAllowed(normalizedPage) ? normalizedPage : defaultPage;
         },
 
         resolveActivePage(defaultPage, previousShell, previousPage) {
-          if (previousShell === this.currentShell && this.isPageAllowed(previousPage)) {
-            return previousPage;
+          const normalizedPreviousPage = this.normalizeRoutePage(previousPage);
+          if (previousShell === this.currentShell && this.isPageAllowed(normalizedPreviousPage)) {
+            return normalizedPreviousPage;
           }
 
           return this.restorePage(defaultPage);
@@ -12224,6 +12236,7 @@
 
         captureViewState() {
           return {
+            navigationToken: this.navigationToken || 0,
             currentShell: this.currentShell,
             currentPage: this.currentPage,
             pageTitle: this.pageTitle,
@@ -12238,8 +12251,10 @@
 
         restoreViewState(snapshot) {
           if (!snapshot) return;
+          if ((this.navigationToken || 0) !== (snapshot.navigationToken || 0)) return;
           this.currentShell = snapshot.currentShell;
-          this.currentPage = this.isPageAllowed(snapshot.currentPage) ? snapshot.currentPage : this.currentPage;
+          const snapshotPage = this.normalizeRoutePage(snapshot.currentPage);
+          this.currentPage = this.isPageAllowed(snapshotPage) ? snapshotPage : this.currentPage;
           this.pageTitle = this.titleForPage(this.currentPage);
           this.sidebarOpen = snapshot.sidebarOpen;
 
@@ -20568,88 +20583,110 @@
           }
         },
 
-        async navigate(page) {
-          if (page === 'leads' && this.isFreeActiveLandlordAccount()) {
-            page = 'dashboard';
+        async navigate(page, event = null) {
+          const clickEvent = event || (page && typeof page === 'object' && typeof page.preventDefault === 'function' ? page : null);
+          if (clickEvent?.preventDefault) clickEvent.preventDefault();
+          if (clickEvent?.stopPropagation) clickEvent.stopPropagation();
+          const explicitPage = typeof page === 'string' ? page.trim() : '';
+          const clickedPage = clickEvent?.currentTarget?.dataset?.page || clickEvent?.target?.closest?.('[data-page]')?.dataset?.page || '';
+          const requestedPage = explicitPage || clickedPage;
+          if (!requestedPage) return;
+          let targetPage = this.normalizeRoutePage(requestedPage);
+          if (targetPage === 'leads' && this.isFreeActiveLandlordAccount()) {
+            targetPage = 'dashboard';
           }
-          if (!this.isPageAllowed(page)) return;
+          if (!this.isPageAllowed(targetPage)) return;
 
-          this.currentPage = page;
-          this.pageTitle = this.titleForPage(page);
+          const shellAtNavigationStart = this.currentShell;
+          const navToken = (this.navigationToken || 0) + 1;
+          this.navigationToken = navToken;
+
+          this.currentPage = targetPage;
+          this.pageTitle = this.titleForPage(targetPage);
           this.sidebarOpen = false;
-          this.storeCurrentPage(page);
+          this.successMessage = '';
+          this.authError = '';
+          this.storeCurrentPage(targetPage);
 
-          if (page === 'dashboard' && this.currentShell === 'app') {
-            await this.loadDashboardData();
-          }
-
-          if (page === 'properties' && this.currentShell === 'app') {
-            await this.loadPropertyUnitData();
-          }
-
-          if (page === 'leases' && this.currentShell === 'app') {
-            await this.loadTenantLeaseData();
-          }
-
-          if (page === 'payments' && this.currentShell === 'app') {
-            await this.loadPaymentsData();
-          }
-
-          if (page === 'finance' && this.currentShell === 'app') {
-            await this.loadFinanceData();
-          }
-
-          if (page === 'leads' && this.currentShell === 'app') {
-            await this.loadLeadsPage();
-          }
-
-          if ((page === 'admin-dashboard' || page === 'admin-finance' || page === 'admin-pricing' || page === 'landlord-management' || page === 'admin-tenants' || page === 'admin-enquiries' || page === 'admin-leads' || page === 'admin-notes' || page === 'admin-audit' || page === 'admin-automation' || page === 'admin-team' || page === 'admin-staff' || page === 'admin-management') && this.currentShell === 'super_admin') {
-            if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
-            await this.loadSuperAdminData();
-            if (page === 'admin-leads') await this.loadLeadsPage();
-            if (page === 'admin-audit') await this.loadAuditLogs();
-            if (page === 'admin-automation') await this.loadAutomationData();
-          }
-
-          if (page === 'maintenance' && this.currentShell === 'app') {
-            await this.loadMaintenanceData();
-          }
-
-          if (page === 'management-landlords' && this.currentShell === 'app') {
-            if (this.profile?.role === 'management_leader') {
-              await this.loadManagementPageData();
-            } else if (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') {
-              await this.loadStaffPermissions(this.profile.id);
-            }
-          }
-
-          if (page === 'staff' && this.currentShell === 'app') {
-            await this.loadStaffData();
-          }
-
-          if (page === 'notifications' && this.currentShell === 'app') {
-            await this.loadNotifications();
-          }
-
-          if (page === 'settings' && this.currentShell === 'app') {
-            this.loadSettingsData();
-          }
-
-          if (page === 'my-account' && this.currentShell === 'app') {
-            await this.loadMyAccountData();
-          }
-
-          if (this.currentShell === 'tenant') {
-            if (page === 'tenant-home' || page === 'tenant-payments' || page === 'tenant-maintenance') {
-              await this.loadTenantData();
+          try {
+            if (targetPage === 'dashboard' && this.currentShell === 'app') {
+              await this.loadDashboardData();
             }
 
-            if (page === 'tenant-notifications') {
+            if (targetPage === 'properties' && this.currentShell === 'app') {
+              await this.loadPropertyUnitData();
+            }
+
+            if (targetPage === 'leases' && this.currentShell === 'app') {
+              await this.loadTenantLeaseData();
+            }
+
+            if (targetPage === 'payments' && this.currentShell === 'app') {
+              await this.loadPaymentsData();
+            }
+
+            if (targetPage === 'finance' && this.currentShell === 'app') {
+              await this.loadFinanceData();
+            }
+
+            if (targetPage === 'leads' && this.currentShell === 'app') {
+              await this.loadLeadsPage();
+            }
+
+            if ((targetPage === 'admin-dashboard' || targetPage === 'admin-finance' || targetPage === 'admin-pricing' || targetPage === 'landlord-management' || targetPage === 'admin-tenants' || targetPage === 'admin-enquiries' || targetPage === 'admin-leads' || targetPage === 'admin-notes' || targetPage === 'admin-audit' || targetPage === 'admin-automation' || targetPage === 'admin-team' || targetPage === 'admin-staff' || targetPage === 'admin-management') && this.currentShell === 'super_admin') {
+              if (!this.admin.financeForm.paidAt) this.resetAdminFinanceForm();
+              await this.loadSuperAdminData();
+              if (targetPage === 'admin-leads') await this.loadLeadsPage();
+              if (targetPage === 'admin-audit') await this.loadAuditLogs();
+              if (targetPage === 'admin-automation') await this.loadAutomationData();
+            }
+
+            if (targetPage === 'maintenance' && this.currentShell === 'app') {
+              await this.loadMaintenanceData();
+            }
+
+            if (targetPage === 'management-landlords' && this.currentShell === 'app') {
+              if (this.profile?.role === 'management_leader') {
+                await this.loadManagementPageData();
+              } else if (this.profile?.role === 'staff' && this.profile?.staff_type === 'freelancer') {
+                await this.loadStaffPermissions(this.profile.id);
+              }
+            }
+
+            if (targetPage === 'staff' && this.currentShell === 'app') {
+              await this.loadStaffData();
+            }
+
+            if (targetPage === 'notifications' && this.currentShell === 'app') {
               await this.loadNotifications();
             }
 
-            if (page === 'tenant-settings') {
+            if (targetPage === 'settings' && this.currentShell === 'app') {
               this.loadSettingsData();
+            }
+
+            if (targetPage === 'my-account' && this.currentShell === 'app') {
+              await this.loadMyAccountData();
+            }
+
+            if (this.currentShell === 'tenant') {
+              if (targetPage === 'tenant-home' || targetPage === 'tenant-payments' || targetPage === 'tenant-maintenance') {
+                await this.loadTenantData();
+              }
+
+              if (targetPage === 'tenant-notifications') {
+                await this.loadNotifications();
+              }
+
+              if (targetPage === 'tenant-settings') {
+                this.loadSettingsData();
+              }
+            }
+          } finally {
+            if (this.navigationToken === navToken && this.currentShell === shellAtNavigationStart && this.isPageAllowed(targetPage)) {
+              this.currentPage = targetPage;
+              this.pageTitle = this.titleForPage(targetPage);
+              this.storeCurrentPage(targetPage);
             }
           }
         },
